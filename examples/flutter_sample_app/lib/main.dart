@@ -9,9 +9,16 @@ import 'screens/home_screen.dart';
 void main() {
   // Enable FlutterDriver extension for testing and FlutterReflect interaction
   enableFlutterDriverExtension(
-    handler: (String request) async {
+    handler: (String? request) async {
       // Handle custom commands from FlutterReflect
       try {
+        if (request == null) {
+          return jsonEncode({
+            'result': 'success',
+            'message': 'FlutterReflect handler registered (null request)',
+          });
+        }
+
         final requestData = jsonDecode(request);
         final command = requestData['command'] as String?;
 
