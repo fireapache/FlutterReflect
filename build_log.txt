@@ -1,0 +1,34 @@
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.22631.
+-- Using the multi-header code from E:/C++/FlutterReflect/build/_deps/nlohmann_json-src/include/
+-- Build spdlog: 1.12.0
+-- Build type: Debug
+CMake Warning (dev) at C:/Program Files/CMake/share/cmake-4.0/Modules/FetchContent.cmake:1953 (message):
+  Calling FetchContent_Populate(websocketpp) is deprecated, call
+  FetchContent_MakeAvailable(websocketpp) instead.  Policy CMP0169 can be set
+  to OLD to allow FetchContent_Populate(websocketpp) to be called directly
+  for now, but the ability to call it with declared details will be removed
+  completely in a future version.
+Call Stack (most recent call first):
+  CMakeLists.txt:64 (FetchContent_Populate)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) at C:/Program Files/CMake/share/cmake-4.0/Modules/FetchContent.cmake:1953 (message):
+  Calling FetchContent_Populate(asio) is deprecated, call
+  FetchContent_MakeAvailable(asio) instead.  Policy CMP0169 can be set to OLD
+  to allow FetchContent_Populate(asio) to be called directly for now, but the
+  ability to call it with declared details will be removed completely in a
+  future version.
+Call Stack (most recent call first):
+  CMakeLists.txt:70 (FetchContent_Populate)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- FlutterReflect Configuration:
+--   Version: 1.0.0
+--   Build type: Debug
+--   C++ standard: 17
+--   Build tests: ON
+--   Build examples: ON
+--   Platform: Windows
+-- Configuring done (7.1s)
+-- Generating done (1.9s)
+-- Build files have been written to: E:/C++/FlutterReflect/build

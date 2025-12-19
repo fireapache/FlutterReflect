@@ -1,0 +1,54 @@
+# Build outputs and artifacts
+build/
+.build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+*.lib
+*.exe
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+*.user
+*.VC.db
+.vs/
+
+# CMake
+CMakeUserPresets.json
+
+# Flutter/Dart
+flutter_sample_app/build/
+flutter_sample_app/.dart_tool/
+flutter_sample_app/pubspec.lock
+flutter_sample_app/.flutter-plugins
+flutter_sample_app/.flutter-plugins-dependencies
+flutter_sample_app/.packages
+flutter_sample_app/coverage/
+flutter_sample_app/.idea/
+
+# Logs
+*.log
+logs/
+*.ldb
+
+# Temp files
+*.tmp
+*.temp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
