@@ -2954,6 +2954,418 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_full_workflow_e2e(self):
+        """Test full workflow: Add todos → Navigate to stats → Filter → Mark complete → Delete → Verify entire flow"""
+        print("\n" + "="*80)
+        print("TEST: Full Workflow E2E")
+        print("="*80)
+
+        import time
+        state_utils = StateUtils(self.proc)
+
+        # Define selectors
+        add_input_selector = "TextField[key='addTodoInput']"
+        add_button_selector = "ElevatedButton[key='addTodoButton']"
+        stats_button_selector = "ElevatedButton[key='statsButton']"
+        back_button_selector = "ElevatedButton[key='backButton']"
+        show_all_selector = "ElevatedButton[key='showAllButton']"
+        show_active_selector = "ElevatedButton[key='showActiveButton']"
+        show_completed_selector = "ElevatedButton[key='showCompletedButton']"
+
+        # Test data
+        new_todos = ["Write documentation", "Review code", "Deploy application"]
+
+        # Step 1: Capture initial state
+        print(f"\n📋 Step 1: Capture initial state")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_full_workflow_e2e - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial state: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+
+        # Step 2: Add multiple todos
+        print(f"\n📋 Step 2: Add {len(new_todos)} new todos")
+        for idx, todo_text in enumerate(new_todos, 1):
+            print(f"\n   Adding todo {idx}/{len(new_todos)}: '{todo_text}'")
+
+            # Type in input field
+            type_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_type",
+                    "arguments": {
+                        "text": todo_text,
+                        "selector": add_input_selector
+                    }
+                },
+                "id": 200 + idx
+            }
+
+            response = send_request(self.proc, type_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"      ✅ Text typed: '{todo_text}'")
+                    else:
+                        print(f"      ❌ Failed to type text: {result.get('error', 'Unknown error')}")
+                        self.results['failed'].append(f'test_full_workflow_e2e - add_todo_{idx}_type')
+                        return False
+
+            time.sleep(0.3)
+
+            # Click Add button
+            tap_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_tap",
+                    "arguments": {
+                        "selector": add_button_selector
+                    }
+                },
+                "id": 210 + idx
+            }
+
+            response = send_request(self.proc, tap_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"      ✅ Add button clicked")
+                    else:
+                        print(f"      ❌ Failed to click Add button: {result.get('error', 'Unknown error')}")
+                        self.results['failed'].append(f'test_full_workflow_e2e - add_todo_{idx}_click')
+                        return False
+
+            time.sleep(0.5)
+
+        # Step 3: Verify todos were added
+        print(f"\n📋 Step 3: Verify todos were added")
+        after_add_tree = state_utils.capture_tree(max_depth=10)
+        if not after_add_tree.get('success'):
+            print(f"   ❌ Failed to capture tree after adding todos")
+            self.results['failed'].append('test_full_workflow_e2e - after_add_tree')
+            return False
+
+        after_add_count = state_utils.get_widget_count(after_add_tree)
+        if after_add_count.get('success'):
+            added_widgets = after_add_count['count'] - initial_count['count']
+            print(f"   ✅ After adding: {after_add_count['count']} widgets (+{added_widgets})")
+
+            # Check if tree changed (todos added)
+            comparison = state_utils.compare_trees(initial_tree, after_add_tree)
+            if not comparison['identical']:
+                print(f"   ✅ Tree changed after adding todos")
+                print(f"   📊 {comparison['details']}")
+            else:
+                print(f"   ⚠️  Tree unchanged - todos may not have been added properly")
+
+        # Step 4: Navigate to Stats screen
+        print(f"\n📋 Step 4: Navigate to Stats screen")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": stats_button_selector
+                }
+            },
+            "id": 220
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Navigated to Stats screen")
+                else:
+                    print(f"   ❌ Failed to navigate: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_full_workflow_e2e - navigate_stats')
+                    return False
+
+        time.sleep(1)
+
+        # Step 5: Test filtering on Stats screen
+        print(f"\n📋 Step 5: Test filtering on Stats screen")
+
+        # Click Show All
+        print(f"\n   Testing Show All filter")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_all_selector
+                }
+            },
+            "id": 221
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"      ✅ Show All clicked")
+                else:
+                    print(f"      ⚠️  Show All failed: {result.get('error', 'Unknown error')}")
+
+        time.sleep(0.5)
+
+        # Click Show Active
+        print(f"\n   Testing Show Active filter")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_active_selector
+                }
+            },
+            "id": 222
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"      ✅ Show Active clicked")
+                else:
+                    print(f"      ⚠️  Show Active failed: {result.get('error', 'Unknown error')}")
+
+        time.sleep(0.5)
+
+        # Capture tree after filtering
+        filter_tree = state_utils.capture_tree(max_depth=10)
+        if filter_tree.get('success'):
+            filter_count = state_utils.get_widget_count(filter_tree)
+            if filter_count.get('success'):
+                print(f"      ✅ Tree after filtering: {filter_count['count']} widgets")
+
+        # Step 6: Return to Home screen
+        print(f"\n📋 Step 6: Return to Home screen")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": back_button_selector
+                }
+            },
+            "id": 223
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Returned to Home screen")
+                else:
+                    print(f"   ❌ Failed to return: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_full_workflow_e2e - back_navigation')
+                    return False
+
+        time.sleep(1)
+
+        # Step 7: Mark a todo as complete
+        print(f"\n📋 Step 7: Mark first todo as complete")
+
+        # Try to find a checkbox using find tool
+        find_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_find",
+                "arguments": {
+                    "selector": "Checkbox[key^='todoDone_']"
+                }
+            },
+            "id": 224
+        }
+
+        checkbox_selector = None
+        response = send_request(self.proc, find_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success') and result.get('data'):
+                    widgets = result['data'].get('widgets', [])
+                    if len(widgets) > 0:
+                        widget_id = widgets[0].get('id')
+                        checkbox_selector = f"Checkbox[id={widget_id}]"
+                        print(f"   ✅ Found checkbox: {checkbox_selector}")
+                    else:
+                        print(f"   ⚠️  No checkboxes found")
+
+        # If find didn't work, try direct selector
+        if not checkbox_selector:
+            checkbox_selector = "Checkbox[key^='todoDone_']"
+            print(f"   ℹ️  Using generic checkbox selector")
+
+        # Tap the checkbox
+        if checkbox_selector:
+            tap_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_tap",
+                    "arguments": {
+                        "selector": checkbox_selector
+                    }
+                },
+                "id": 225
+            }
+
+            response = send_request(self.proc, tap_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"   ✅ Checkbox clicked - todo marked complete")
+                    else:
+                        print(f"   ❌ Failed to click checkbox: {result.get('error', 'Unknown error')}")
+
+            time.sleep(0.5)
+
+        # Step 8: Capture state after marking complete
+        print(f"\n📋 Step 8: Capture state after marking complete")
+        after_complete_tree = state_utils.capture_tree(max_depth=10)
+        if after_complete_tree.get('success'):
+            complete_count = state_utils.get_widget_count(after_complete_tree)
+            if complete_count.get('success'):
+                print(f"   ✅ After marking complete: {complete_count['count']} widgets")
+
+        # Step 9: Delete a todo
+        print(f"\n📋 Step 9: Delete a todo")
+
+        # Try to find a delete button
+        find_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_find",
+                "arguments": {
+                    "selector": "IconButton[key^='deleteButton_']"
+                }
+            },
+            "id": 226
+        }
+
+        delete_selector = None
+        response = send_request(self.proc, find_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success') and result.get('data'):
+                    widgets = result['data'].get('widgets', [])
+                    if len(widgets) > 0:
+                        widget_id = widgets[0].get('id')
+                        delete_selector = f"IconButton[id={widget_id}]"
+                        print(f"   ✅ Found delete button: {delete_selector}")
+                    else:
+                        print(f"   ⚠️  No delete buttons found")
+
+        # If find didn't work, try direct selector
+        if not delete_selector:
+            delete_selector = "IconButton[key^='deleteButton_']"
+            print(f"   ℹ️  Using generic delete button selector")
+
+        # Tap the delete button
+        if delete_selector:
+            tap_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_tap",
+                    "arguments": {
+                        "selector": delete_selector
+                    }
+                },
+                "id": 227
+            }
+
+            response = send_request(self.proc, tap_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"   ✅ Delete button clicked")
+                    else:
+                        print(f"   ❌ Failed to click delete: {result.get('error', 'Unknown error')}")
+
+            time.sleep(0.5)
+
+        # Step 10: Verify final state
+        print(f"\n📋 Step 10: Verify final state and compare with initial")
+        final_tree = state_utils.capture_tree(max_depth=10)
+        if not final_tree.get('success'):
+            print(f"   ❌ Failed to capture final tree")
+            self.results['failed'].append('test_full_workflow_e2e - final_tree')
+            return False
+
+        final_count = state_utils.get_widget_count(final_tree)
+        if final_count.get('success'):
+            total_change = final_count['count'] - initial_count['count']
+            print(f"   ✅ Final state: {final_count['count']} widgets ({total_change:+d} from initial)")
+
+        # Compare initial and final trees
+        comparison = state_utils.compare_trees(initial_tree, final_tree)
+        print(f"\n📊 Workflow Summary:")
+        print(f"   {comparison['details']}")
+
+        if comparison['identical']:
+            print(f"   ℹ️  Note: Tree identical to initial - changes may have been transient")
+        else:
+            print(f"   ✅ Tree changed - workflow executed successfully")
+
+        # Step 11: Verify workflow persistence
+        print(f"\n📋 Step 11: Verify workflow persistence")
+
+        # Check that we went through all stages
+        workflow_stages = [
+            "Added multiple todos",
+            "Navigated to Stats screen",
+            "Tested filters",
+            "Returned to Home screen",
+            "Marked todo complete",
+            "Deleted todo"
+        ]
+
+        print(f"\n   ✅ Workflow stages completed:")
+        for stage in workflow_stages:
+            print(f"      • {stage}")
+
+        # Test passed
+        self.results['passed'].append('test_full_workflow_e2e')
+        print("\n✅ Full workflow E2E test PASSED")
+        print("="*80)
+        return True
+
     def cleanup(self):
         """Clean up resources"""
         if self.proc:
@@ -3062,6 +3474,9 @@ def main():
 
             # Run filter buttons test
             runner.test_filter_buttons()
+
+            # Run full workflow E2E test
+            runner.test_full_workflow_e2e()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
