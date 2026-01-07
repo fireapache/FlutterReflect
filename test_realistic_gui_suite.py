@@ -2088,6 +2088,299 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_back_navigation(self):
+        """Test back navigation: Click backButton, verify return to HomeScreen, verify todo list visible again"""
+        print("\n" + "="*80)
+        print("TEST: Back Navigation")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        back_button_selector = "IconButton[key='backButton']"
+
+        # Step 1: Ensure we're on Stats screen (navigate if needed)
+        print(f"\n📋 Step 1: Ensure we're on Stats screen")
+
+        # First check if back button exists (indicating we're on Stats screen)
+        check_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": back_button_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 130
+        }
+
+        response = send_request(self.proc, check_request)
+        on_stats_screen = False
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    on_stats_screen = True
+                    print(f"   ✅ Already on Stats screen (back button found)")
+                else:
+                    print(f"   ℹ️  Not on Stats screen - navigating now")
+        else:
+            print(f"   ℹ️  Not on Stats screen - navigating now")
+
+        # If not on Stats screen, navigate there first
+        if not on_stats_screen:
+            stats_button_selector = "ElevatedButton[key='statsButton']"
+            tap_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_tap",
+                    "arguments": {
+                        "selector": stats_button_selector
+                    }
+                },
+                "id": 131
+            }
+
+            response = send_request(self.proc, tap_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"   ✅ Navigated to Stats screen")
+                    else:
+                        print(f"   ❌ Failed to navigate to Stats screen: {result.get('error', 'Unknown error')}")
+                        self.results['failed'].append('test_back_navigation - navigate_to_stats')
+                        return False
+            else:
+                print(f"   ❌ No response from Stats navigation")
+                self.results['failed'].append('test_back_navigation - navigate_to_stats')
+                return False
+
+            # Wait for screen transition
+            import time
+            time.sleep(1)
+
+        # Step 2: Capture initial tree state (on Stats Screen)
+        print(f"\n📋 Step 2: Capture initial tree state (Stats Screen)")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_back_navigation - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+            initial_count['count'] = 0
+
+        # Step 3: Verify we're on Stats screen
+        print(f"\n📋 Step 3: Verify StatsScreen is visible")
+        tree_text = json.dumps(initial_tree.get('data', {}))
+
+        stats_screen_indicators = [
+            "Statistics & Filtering",  # AppBar title
+            "Task Statistics",          # Section title
+            "StatsScreen"               # Widget type name
+        ]
+
+        stats_screen_found = False
+        for indicator in stats_screen_indicators:
+            if indicator in tree_text:
+                print(f"   ✅ Confirmed on Stats screen (found: '{indicator}')")
+                stats_screen_found = True
+                break
+
+        if not stats_screen_found:
+            print(f"   ❌ Not on Stats screen - cannot test back navigation")
+            self.results['failed'].append('test_back_navigation - not_on_stats')
+            return False
+
+        # Step 4: Click back button
+        print(f"\n📋 Step 4: Click back button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": back_button_selector
+                }
+            },
+            "id": 132
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Back button clicked")
+                else:
+                    print(f"   ❌ Failed to click back button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_back_navigation - click_back')
+                    return False
+        else:
+            print(f"   ❌ No response from back button click")
+            self.results['failed'].append('test_back_navigation - click_back')
+            return False
+
+        # Wait for UI update (screen transition)
+        import time
+        time.sleep(1)
+
+        # Step 5: Capture new tree state (should be back on Home Screen)
+        print(f"\n📋 Step 5: Capture new tree state (after back navigation)")
+        new_tree = state_utils.capture_tree(max_depth=10)
+        if not new_tree.get('success'):
+            print(f"   ❌ Failed to capture new tree: {new_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_back_navigation - new_tree')
+            return False
+
+        new_count = state_utils.get_widget_count(new_tree)
+        if new_count.get('success'):
+            print(f"   ✅ New tree captured: {new_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get new widget count")
+
+        # Step 6: Verify HomeScreen is visible
+        print(f"\n📋 Step 6: Verify HomeScreen appears in widget tree")
+        tree_text = json.dumps(new_tree.get('data', {}))
+
+        # Look for HomeScreen indicators
+        home_screen_indicators = [
+            "Todo App",                 # AppBar title
+            "HomeScreen",               # Widget type name
+            "Add Task",                 # Button text
+            "Mark All Complete"         # Button text
+        ]
+
+        home_screen_found = False
+        for indicator in home_screen_indicators:
+            if indicator in tree_text:
+                print(f"   ✅ Found HomeScreen indicator: '{indicator}'")
+                home_screen_found = True
+                break
+
+        if not home_screen_found:
+            print(f"   ❌ HomeScreen not found in widget tree")
+            print(f"   📝 Tree preview: {tree_text[:300]}...")
+            self.results['failed'].append('test_back_navigation - home_screen_not_found')
+            return False
+
+        # Step 7: Verify todo list is visible again
+        print(f"\n📋 Step 7: Verify todo list is accessible")
+
+        # Check for todo list indicators
+        todo_list_indicators = [
+            "ListView",                 # Todo list widget type
+            "todoDone_",                # Checkbox key prefix
+            "todoText_",                # Todo text key prefix
+            "deleteButton_"             # Delete button key prefix
+        ]
+
+        todo_list_found = False
+        for indicator in todo_list_indicators:
+            if indicator in tree_text:
+                print(f"   ✅ Found todo list indicator: '{indicator}'")
+                todo_list_found = True
+                break
+
+        if not todo_list_found:
+            print(f"   ⚠️  Todo list indicators not found - list may be empty")
+            # Don't fail - todo list might legitimately be empty
+        else:
+            print(f"   ✅ Todo list is visible and accessible")
+
+        # Step 8: Verify we can access a todo item (if any exist)
+        print(f"\n📋 Step 8: Verify we can access todo items")
+
+        # Try to find the first todo item
+        first_todo_selector = "Checkbox[key='todoDone_1']"
+        props_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": first_todo_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 133
+        }
+
+        response = send_request(self.proc, props_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ First todo item accessible (checkbox found)")
+                else:
+                    # Todo list might be empty - that's okay
+                    print(f"   ℹ️  First todo item not found (list may be empty)")
+            else:
+                print(f"   ℹ️  Could not verify todo item access")
+        else:
+            print(f"   ℹ️  Could not verify todo item access (list may be empty)")
+
+        # Step 9: Verify Stats button is accessible again
+        print(f"\n📋 Step 9: Verify Stats button is accessible on Home screen")
+        stats_button_selector = "ElevatedButton[key='statsButton']"
+
+        stats_button_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_button_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 134
+        }
+
+        response = send_request(self.proc, stats_button_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Stats button accessible on Home screen")
+                else:
+                    print(f"   ⚠️  Stats button not found: {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Stats button check returned no content")
+        else:
+            print(f"   ⚠️  No response from Stats button check")
+
+        # Step 10: Compare trees to detect navigation changes
+        print(f"\n📋 Step 10: Compare trees to detect navigation changes")
+        comparison = state_utils.compare_trees(initial_tree, new_tree)
+
+        if not comparison['identical']:
+            print(f"   ✅ Trees differ - navigation occurred")
+            print(f"   📊 {comparison['details']}")
+        else:
+            print(f"   ⚠️  Trees are identical - navigation may not have occurred")
+            # Don't fail - navigation might have happened with same widget count
+
+        # Test passed
+        self.results['passed'].append('test_back_navigation')
+        print("\n✅ Back navigation test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
