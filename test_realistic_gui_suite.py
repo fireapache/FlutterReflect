@@ -28,6 +28,221 @@ def send_request(proc, request):
     return None
 
 
+class StateUtils:
+    """Utilities for capturing and comparing widget tree state snapshots"""
+
+    def __init__(self, proc):
+        """Initialize with a process handle for MCP requests"""
+        self.proc = proc
+        self._request_id = 100
+
+    def _get_next_id(self):
+        """Get next request ID"""
+        self._request_id += 1
+        return self._request_id
+
+    def capture_tree(self, max_depth=10, format="json"):
+        """
+        Capture a snapshot of the current widget tree
+
+        Args:
+            max_depth: Maximum depth to traverse (default: 10)
+            format: Output format - 'json' or 'text' (default: 'json')
+
+        Returns:
+            dict: Tree data with success status and tree structure
+            {
+                'success': bool,
+                'data': {
+                    'widget_tree': {...},
+                    'node_count': int,
+                    'max_depth': int,
+                    'text': str  # if format='text'
+                },
+                'error': str  # if success=False
+            }
+        """
+        try:
+            request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_get_tree",
+                    "arguments": {
+                        "max_depth": max_depth,
+                        "format": format
+                    }
+                },
+                "id": self._get_next_id()
+            }
+
+            response = send_request(self.proc, request)
+
+            if response and response.get('result'):
+                result = response['result']
+                if 'content' in result and len(result['content']) > 0:
+                    content = result['content'][0]
+                    if 'text' in content:
+                        tree_data = json.loads(content['text'])
+                        return tree_data
+
+            # Error case
+            error = response.get('error', {}) if response else {}
+            return {
+                'success': False,
+                'error': error.get('message', 'Unknown error')
+            }
+
+        except json.JSONDecodeError as e:
+            return {
+                'success': False,
+                'error': f'JSON decode error: {e}'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def compare_trees(self, tree1, tree2):
+        """
+        Compare two tree snapshots and identify differences
+
+        Args:
+            tree1: First tree snapshot (from capture_tree)
+            tree2: Second tree snapshot (from capture_tree)
+
+        Returns:
+            dict: Comparison result
+            {
+                'identical': bool,
+                'changes': {
+                    'node_count_diff': int,
+                    'depth_diff': int,
+                    'nodes_added': int,
+                    'nodes_removed': int,
+                    'nodes_modified': int
+                },
+                'details': str  # Human-readable summary
+            }
+        """
+        try:
+            # Validate inputs
+            if not tree1.get('success') or not tree2.get('success'):
+                return {
+                    'identical': False,
+                    'changes': None,
+                    'details': 'Cannot compare - one or both trees failed to capture'
+                }
+
+            # Extract widget tree data
+            wt1 = tree1.get('data', {}).get('widget_tree', {})
+            wt2 = tree2.get('data', {}).get('widget_tree', {})
+
+            nodes1 = wt1.get('nodes', [])
+            nodes2 = wt2.get('nodes', [])
+
+            count1 = wt1.get('node_count', len(nodes1))
+            count2 = wt2.get('node_count', len(nodes2))
+
+            depth1 = tree1.get('data', {}).get('max_depth', 0)
+            depth2 = tree2.get('data', {}).get('max_depth', 0)
+
+            # Calculate differences
+            node_count_diff = count2 - count1
+            depth_diff = depth2 - depth1
+
+            # Simple comparison: check if counts are equal
+            identical = (node_count_diff == 0 and depth_diff == 0)
+
+            # Estimate changes (simplified - real implementation would traverse trees)
+            nodes_added = max(0, node_count_diff)
+            nodes_removed = max(0, -node_count_diff)
+            nodes_modified = 0  # Would require deeper analysis
+
+            # Generate summary
+            if identical:
+                details = f"Trees are identical ({count1} nodes, max depth: {depth1})"
+            else:
+                parts = []
+                if node_count_diff != 0:
+                    parts.append(f"node count: {count1} → {count2} ({node_count_diff:+d})")
+                if depth_diff != 0:
+                    parts.append(f"max depth: {depth1} → {depth2} ({depth_diff:+d})")
+                details = "Trees differ: " + ", ".join(parts)
+
+            return {
+                'identical': identical,
+                'changes': {
+                    'node_count_diff': node_count_diff,
+                    'depth_diff': depth_diff,
+                    'nodes_added': nodes_added,
+                    'nodes_removed': nodes_removed,
+                    'nodes_modified': nodes_modified
+                },
+                'details': details
+            }
+
+        except Exception as e:
+            return {
+                'identical': False,
+                'changes': None,
+                'details': f'Error comparing trees: {e}'
+            }
+
+    def get_widget_count(self, tree_snapshot=None, max_depth=10):
+        """
+        Get the total count of widgets in the tree
+
+        Args:
+            tree_snapshot: Optional tree snapshot from capture_tree.
+                          If None, captures a new snapshot.
+            max_depth: Maximum depth for capturing new snapshot (if tree_snapshot is None)
+
+        Returns:
+            dict: Widget count information
+            {
+                'success': bool,
+                'count': int,
+                'max_depth': int,
+                'error': str  # if success=False
+            }
+        """
+        try:
+            # Use provided snapshot or capture new one
+            if tree_snapshot is not None:
+                tree_data = tree_snapshot
+            else:
+                tree_data = self.capture_tree(max_depth=max_depth)
+
+            # Extract count
+            if tree_data.get('success'):
+                widget_tree = tree_data.get('data', {}).get('widget_tree', {})
+                count = widget_tree.get('node_count', 0)
+                max_depth_reached = tree_data.get('data', {}).get('max_depth', 0)
+
+                return {
+                    'success': True,
+                    'count': count,
+                    'max_depth': max_depth_reached
+                }
+            else:
+                return {
+                    'success': False,
+                    'count': 0,
+                    'max_depth': 0,
+                    'error': tree_data.get('error', 'Unknown error')
+                }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'count': 0,
+                'max_depth': 0,
+                'error': str(e)
+            }
+
+
 class TestRunner:
     def __init__(self):
         self.executable = r"E:\C++\FlutterReflect\build\Debug\flutter_reflect.exe"
