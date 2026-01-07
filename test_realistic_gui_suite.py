@@ -254,6 +254,37 @@ class TestRunner:
         self.start_time = datetime.now()
         self.proc = None
 
+        # Component tracking for coverage report
+        # All 23 UI components from the spec
+        self.all_components = {
+            # Home Screen Components (11 items)
+            'addTodoInput': 'Add todo input field',
+            'addTodoButton': 'Add todo button',
+            'statsButton': 'Stats button',
+            'markAllCompleteButton': 'Mark all complete button',
+            'clearAllButton': 'Clear all button',
+            'statsWidget': 'Stats widget display',
+            'todoListView': 'Todo list view',
+            'todoCheckboxes': 'Todo item checkboxes',
+            'todoTextLabels': 'Todo item text labels',
+            'deleteButtons': 'Delete buttons',
+            'todoItemTapTargets': 'Todo item tap targets',
+            # Stats Screen Components (12 items)
+            'backButton': 'Back button',
+            'searchInput': 'Search input field',
+            'filterBar': 'Filter bar container',
+            'showAllButton': 'Show all button',
+            'showActiveButton': 'Show active button',
+            'showCompletedButton': 'Show completed button',
+            'filteredListView': 'Filtered list view',
+            'statCardTotal': 'Stat card: Total',
+            'statCardCompleted': 'Stat card: Completed',
+            'statCardActive': 'Stat card: Active',
+            'progressBar': 'Progress bar',
+            'interactionLog': 'Interaction log widget'
+        }
+        self.components_tested = set()
+
     def initialize_mcp(self):
         """Initialize MCP connection"""
         try:
@@ -388,6 +419,10 @@ class TestRunner:
     def disconnect_flutter_app(self):
         """Disconnect from Flutter app"""
         try:
+            if not self.proc:
+                print("⚠️  No active connection to disconnect")
+                return False
+
             disconnect_request = {
                 "jsonrpc": "2.0",
                 "method": "tools/call",
@@ -401,8 +436,13 @@ class TestRunner:
             response = send_request(self.proc, disconnect_request)
 
             if response:
-                print("✅ Disconnected from Flutter app")
-                return True
+                if response.get('result'):
+                    print("✅ Disconnected from Flutter app")
+                    return True
+                else:
+                    error = response.get('error', {})
+                    print(f"⚠️  Disconnect returned error: {error.get('message', 'Unknown')}")
+                    return False
             else:
                 print("⚠️  Disconnect response empty")
                 return False
@@ -410,6 +450,16 @@ class TestRunner:
         except Exception as e:
             print(f"⚠️  Error during disconnect: {e}")
             return False
+
+    def mark_component_tested(self, component_key):
+        """
+        Mark a component as tested
+
+        Args:
+            component_key: Key from all_components dictionary
+        """
+        if component_key in self.all_components:
+            self.components_tested.add(component_key)
 
     def test_input_fields(self):
         """Test input field typing, verification, and clearing"""
@@ -3993,7 +4043,7 @@ class TestRunner:
                 print(f"⚠️ Error during cleanup: {e}")
 
     def print_report(self):
-        """Print final test report"""
+        """Print final test report with coverage statistics"""
         elapsed = (datetime.now() - self.start_time).total_seconds()
 
         print("\n\n" + "="*80)
@@ -4027,6 +4077,31 @@ class TestRunner:
 
         print(f"📈 Success Rate: {success_rate:.1f}%")
 
+        # Component Coverage Section
+        print(f"\n{'='*80}")
+        print("COMPONENT COVERAGE")
+        print(f"{'='*80}")
+
+        total_components = len(self.all_components)
+        tested_components = len(self.components_tested)
+        coverage_percent = (tested_components / total_components * 100) if total_components > 0 else 0
+
+        print(f"\n📦 Components Tested: {tested_components}/{total_components}")
+        print(f"📊 Coverage: {coverage_percent:.1f}%")
+
+        if tested_components > 0:
+            print(f"\n✅ Components Successfully Tested:")
+            for component in sorted(self.components_tested):
+                description = self.all_components.get(component, component)
+                print(f"   • {description}")
+
+        not_tested = set(self.all_components.keys()) - self.components_tested
+        if not_tested:
+            print(f"\n⚠️  Components Not Tested:")
+            for component in sorted(not_tested):
+                description = self.all_components.get(component, component)
+                print(f"   • {description}")
+
         if failed > 0:
             print(f"\n{'='*80}")
             print("FAILED TESTS")
@@ -4057,6 +4132,7 @@ def main():
     # Initialize MCP connection
     if not runner.initialize_mcp():
         print("\n❌ Failed to initialize MCP server. Exiting.")
+        runner.print_report()
         return
 
     try:
@@ -4098,17 +4174,22 @@ def main():
             # Run edge cases test
             runner.test_edge_cases()
 
-            # Disconnect after successful test
-            runner.disconnect_flutter_app()
-
-        # Print final report
-        runner.print_report()
-
     except Exception as e:
         print(f"\n❌ Error during test execution: {e}")
         import traceback
         traceback.print_exc()
+
     finally:
+        # Always attempt to disconnect, even if tests failed
+        print("\n" + "="*80)
+        print("CLEANUP")
+        print("="*80)
+        runner.disconnect_flutter_app()
+
+        # Always print final report
+        runner.print_report()
+
+        # Always clean up resources
         runner.cleanup()
 
 
