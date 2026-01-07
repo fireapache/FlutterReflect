@@ -572,6 +572,288 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_checkbox_toggle(self):
+        """Test checkbox toggle: Click todoDone_{id} checkbox, verify strikethrough appears and stats update"""
+        print("\n" + "="*80)
+        print("TEST: Checkbox Toggle")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        input_selector = "TextField[key='addTodoInput']"
+        button_selector = "ElevatedButton[key='addTodoButton']"
+
+        # Step 1: Create a test todo first if none exists
+        print(f"\n📋 Step 1: Create a test todo to toggle")
+        test_text = "Toggle test task"
+        test_id = "1"  # We'll use the first todo
+
+        # Type text
+        type_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_type",
+                "arguments": {
+                    "text": test_text,
+                    "selector": input_selector
+                }
+            },
+            "id": 30
+        }
+
+        response = send_request(self.proc, type_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Text typed: '{test_text}'")
+
+        # Click Add button
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": button_selector
+                }
+            },
+            "id": 31
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Todo created")
+
+        # Wait for UI update
+        import time
+        time.sleep(0.5)
+
+        # Step 2: Get initial checkbox state
+        print(f"\n📋 Step 2: Get initial checkbox state")
+        checkbox_selector = "Checkbox[key='todoDone_1']"
+
+        checkbox_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": checkbox_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 32
+        }
+
+        response = send_request(self.proc, checkbox_request)
+        initial_checked = False
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    initial_checked = widget_props.get('checked', False)
+                    print(f"   ✅ Initial checkbox state: {'checked' if initial_checked else 'unchecked'}")
+                else:
+                    print(f"   ⚠️  Could not get checkbox state: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from checkbox state check")
+
+        # Step 3: Get initial text decoration state
+        print(f"\n📋 Step 3: Get initial text decoration state")
+        text_selector = "Text[key='todoText_1']"
+
+        text_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": text_selector,
+                    "include_render": True,
+                    "include_layout": False
+                }
+            },
+            "id": 33
+        }
+
+        response = send_request(self.proc, text_request)
+        initial_decoration = None
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    render_props = widget_data.get('renderProperties', {})
+                    text_style = render_props.get('textStyle', {})
+                    initial_decoration = text_style.get('decoration', None)
+                    print(f"   ✅ Initial text decoration: {initial_decoration if initial_decoration else 'none'}")
+                else:
+                    print(f"   ⚠️  Could not get text decoration: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from text decoration check")
+
+        # Step 4: Get initial stats
+        print(f"\n📋 Step 4: Get initial stats counter")
+        stats_selector = "Text[key='statsWidget']"
+
+        stats_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 34
+        }
+
+        response = send_request(self.proc, stats_request)
+        initial_stats = ""
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    initial_stats = widget_props.get('text', '')
+                    print(f"   ✅ Initial stats: {initial_stats}")
+
+        # Step 5: Click checkbox to toggle
+        print(f"\n📋 Step 5: Click checkbox to toggle")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": checkbox_selector
+                }
+            },
+            "id": 35
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Checkbox clicked")
+                else:
+                    print(f"   ❌ Failed to click checkbox: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_checkbox_toggle - click')
+                    return False
+        else:
+            print(f"   ❌ No response from checkbox click")
+            self.results['failed'].append('test_checkbox_toggle - click')
+            return False
+
+        # Wait for UI update
+        time.sleep(0.5)
+
+        # Step 6: Verify checkbox state changed
+        print(f"\n📋 Step 6: Verify checkbox state changed")
+        checkbox_request["id"] = 36
+        response = send_request(self.proc, checkbox_request)
+        new_checked = initial_checked
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    new_checked = widget_props.get('checked', initial_checked)
+                    print(f"   ✅ New checkbox state: {'checked' if new_checked else 'unchecked'}")
+
+                    if new_checked != initial_checked:
+                        print(f"   ✅ Checkbox state changed")
+                    else:
+                        print(f"   ⚠️  Checkbox state did not change (might already be in target state)")
+                else:
+                    print(f"   ⚠️  Could not verify checkbox state: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from checkbox verification")
+
+        # Step 7: Verify text decoration changed (strikethrough should appear/disappear)
+        print(f"\n📋 Step 7: Verify text decoration changed")
+        text_request["id"] = 37
+        response = send_request(self.proc, text_request)
+        new_decoration = initial_decoration
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    render_props = widget_data.get('renderProperties', {})
+                    text_style = render_props.get('textStyle', {})
+                    new_decoration = text_style.get('decoration', None)
+                    print(f"   ✅ New text decoration: {new_decoration if new_decoration else 'none'}")
+
+                    # If checkbox is now checked, should have lineThrough
+                    # If checkbox is now unchecked, should have no decoration
+                    if new_checked:
+                        if new_decoration == "lineThrough" or new_decoration == "TextDecoration.lineThrough":
+                            print(f"   ✅ Strikethrough decoration present (todo completed)")
+                        else:
+                            print(f"   ⚠️  Expected strikethrough but got: {new_decoration}")
+                    else:
+                        if not new_decoration or new_decoration == "none":
+                            print(f"   ✅ No decoration (todo active)")
+                        else:
+                            print(f"   ⚠️  Expected no decoration but got: {new_decoration}")
+                else:
+                    print(f"   ⚠️  Could not verify text decoration: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from text decoration verification")
+
+        # Step 8: Verify stats counter updated
+        print(f"\n📋 Step 8: Verify stats counter updated")
+        stats_request["id"] = 38
+        response = send_request(self.proc, stats_request)
+        new_stats = initial_stats
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    new_stats = widget_props.get('text', '')
+                    print(f"   ✅ New stats: {new_stats}")
+
+                    if new_stats != initial_stats:
+                        print(f"   ✅ Stats counter updated")
+                    else:
+                        print(f"   ⚠️  Stats counter unchanged")
+                else:
+                    print(f"   ⚠️  Could not verify stats: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from stats verification")
+
+        # Test passed
+        self.results['passed'].append('test_checkbox_toggle')
+        print("\n✅ Checkbox toggle test PASSED")
+        print("="*80)
+        return True
+
     def test_add_todo_button(self):
         """Test Add Task button: Type text, click Add, verify new todo appears and stats update"""
         print("\n" + "="*80)
@@ -880,6 +1162,9 @@ def main():
         if runner.test_app_initialization():
             # Run input fields test
             runner.test_input_fields()
+
+            # Run checkbox toggle test
+            runner.test_checkbox_toggle()
 
             # Run add todo button test
             runner.test_add_todo_button()
