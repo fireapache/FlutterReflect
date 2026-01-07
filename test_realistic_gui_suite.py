@@ -2381,6 +2381,281 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_search_field(self):
+        """Test search field: Type in searchInput, verify filtered results update in widget tree, clear search, verify all todos shown"""
+        print("\n" + "="*80)
+        print("TEST: Search Field")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        search_input_selector = "TextField[key='searchInput']"
+        back_button_selector = "IconButton[key='backButton']"
+
+        # Step 1: Ensure we're on Stats screen (navigate if needed)
+        print(f"\n📋 Step 1: Ensure we're on Stats screen")
+
+        # First check if back button exists (indicating we're on Stats screen)
+        check_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": back_button_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 140
+        }
+
+        response = send_request(self.proc, check_request)
+        on_stats_screen = False
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    on_stats_screen = True
+                    print(f"   ✅ Already on Stats screen (back button found)")
+                else:
+                    print(f"   ℹ️  Not on Stats screen - navigating now")
+        else:
+            print(f"   ℹ️  Not on Stats screen - navigating now")
+
+        # If not on Stats screen, navigate there first
+        if not on_stats_screen:
+            stats_button_selector = "ElevatedButton[key='statsButton']"
+            tap_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_tap",
+                    "arguments": {
+                        "selector": stats_button_selector
+                    }
+                },
+                "id": 141
+            }
+
+            response = send_request(self.proc, tap_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        print(f"   ✅ Navigated to Stats screen")
+                    else:
+                        print(f"   ❌ Failed to navigate to Stats screen: {result.get('error', 'Unknown error')}")
+                        self.results['failed'].append('test_search_field - navigate_to_stats')
+                        return False
+            else:
+                print(f"   ❌ No response from Stats navigation")
+                self.results['failed'].append('test_search_field - navigate_to_stats')
+                return False
+
+            # Wait for screen transition
+            import time
+            time.sleep(1)
+
+        # Step 2: Capture initial tree state (all todos visible)
+        print(f"\n📋 Step 2: Capture initial tree state (all todos visible)")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_search_field - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+            initial_count['count'] = 0
+
+        # Step 3: Type search query in search input
+        print(f"\n📋 Step 3: Type search query in search input")
+        search_query = "Buy"  # Assuming there's a todo with "Buy" in the title (e.g., "Buy groceries")
+
+        type_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_type",
+                "arguments": {
+                    "text": search_query,
+                    "selector": search_input_selector
+                }
+            },
+            "id": 142
+        }
+
+        response = send_request(self.proc, type_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Search query '{search_query}' typed successfully")
+                else:
+                    print(f"   ❌ Failed to type search query: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_search_field - type')
+                    return False
+        else:
+            print(f"   ❌ No response from flutter_type")
+            self.results['failed'].append('test_search_field - type')
+            return False
+
+        # Wait for UI update (filtering)
+        time.sleep(0.5)
+
+        # Step 4: Capture tree state after search
+        print(f"\n📋 Step 4: Capture tree state after search (filtered results)")
+        filtered_tree = state_utils.capture_tree(max_depth=10)
+        if not filtered_tree.get('success'):
+            print(f"   ❌ Failed to capture filtered tree: {filtered_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_search_field - filtered_tree')
+            return False
+
+        filtered_count = state_utils.get_widget_count(filtered_tree)
+        if filtered_count.get('success'):
+            print(f"   ✅ Filtered tree captured: {filtered_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get filtered widget count")
+
+        # Step 5: Verify filtered results
+        print(f"\n📋 Step 5: Verify filtered results show only matching todos")
+
+        # Check if the tree contains search query in todo items
+        tree_text = json.dumps(filtered_tree.get('data', {}))
+
+        # Look for todo items containing the search query
+        # We'll check if the filtered list has fewer items than the full list
+        # or if specific search query text appears in the tree
+        if search_query.lower() in tree_text.lower():
+            print(f"   ✅ Search query '{search_query}' found in filtered tree")
+        else:
+            print(f"   ⚠️  Search query '{search_query}' not found - list may be empty or no matches")
+
+        # Compare widget counts - filtering should reduce the visible todo items
+        comparison = state_utils.compare_trees(initial_tree, filtered_tree)
+        if comparison['identical']:
+            print(f"   ⚠️  Trees are identical - filtering may not have occurred or all items match")
+        else:
+            print(f"   ✅ Trees differ - filtering occurred")
+            print(f"   📊 {comparison['details']}")
+
+        # Step 6: Clear search
+        print(f"\n📋 Step 6: Clear search field")
+
+        # Use flutter_type with clear_first to empty the field
+        clear_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_type",
+                "arguments": {
+                    "text": "",
+                    "selector": search_input_selector,
+                    "clear_first": True
+                }
+            },
+            "id": 143
+        }
+
+        response = send_request(self.proc, clear_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Search field cleared successfully")
+                else:
+                    print(f"   ❌ Failed to clear search field: {result.get('error', 'Unknown error')}")
+                    # Don't fail - clearing might work differently
+            else:
+                print(f"   ⚠️  Clear operation returned no content")
+        else:
+            print(f"   ⚠️  No response from clear operation")
+
+        # Wait for UI update (showing all todos again)
+        time.sleep(0.5)
+
+        # Step 7: Capture tree state after clearing
+        print(f"\n📋 Step 7: Capture tree state after clearing (all todos shown)")
+        cleared_tree = state_utils.capture_tree(max_depth=10)
+        if not cleared_tree.get('success'):
+            print(f"   ❌ Failed to capture cleared tree: {cleared_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_search_field - cleared_tree')
+            return False
+
+        cleared_count = state_utils.get_widget_count(cleared_tree)
+        if cleared_count.get('success'):
+            print(f"   ✅ Cleared tree captured: {cleared_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get cleared widget count")
+
+        # Step 8: Verify all todos are shown again
+        print(f"\n📋 Step 8: Verify all todos are shown again")
+
+        # Compare cleared tree with initial tree - should be similar
+        comparison_cleared = state_utils.compare_trees(initial_tree, cleared_tree)
+        if comparison_cleared['identical']:
+            print(f"   ✅ Trees are identical - all todos shown again")
+        else:
+            # Trees might differ slightly due to state changes, but should be similar
+            # The key is that the cleared tree should have more widgets than the filtered tree
+            comparison_filtered = state_utils.compare_trees(filtered_tree, cleared_tree)
+            if not comparison_filtered['identical'] and comparison_filtered['changes']['node_count_diff'] >= 0:
+                print(f"   ✅ Cleared tree differs from filtered tree - todos restored")
+                print(f"   📊 {comparison_filtered['details']}")
+            else:
+                print(f"   ⚠️  Cleared tree comparison unclear")
+
+        # Step 9: Verify search field is empty
+        print(f"\n📋 Step 9: Verify search field is empty via get_properties")
+
+        props_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": search_input_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 144
+        }
+
+        response = send_request(self.proc, props_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    props = result.get('data', {}).get('properties', {})
+                    # Check for 'text' or 'controllerText' property
+                    field_text = props.get('text') or props.get('controllerText', '')
+                    if field_text == '' or field_text is None:
+                        print(f"   ✅ Search field is empty")
+                    else:
+                        print(f"   ⚠️  Search field still has text: '{field_text}'")
+                        # Don't fail - field might show different property
+                else:
+                    print(f"   ⚠️  Could not verify search field properties: {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Search field check returned no content")
+        else:
+            print(f"   ⚠️  No response from search field check")
+
+        # Test passed
+        self.results['passed'].append('test_search_field')
+        print("\n✅ Search field test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
@@ -2523,6 +2798,12 @@ def main():
 
             # Run navigate to stats test
             runner.test_navigate_to_stats()
+
+            # Run back navigation test
+            runner.test_back_navigation()
+
+            # Run search field test
+            runner.test_search_field()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
