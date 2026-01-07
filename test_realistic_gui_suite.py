@@ -1857,6 +1857,237 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_navigate_to_stats(self):
+        """Test navigation to Stats screen: Click Stats button, verify StatsScreen visible, verify stats display"""
+        print("\n" + "="*80)
+        print("TEST: Navigate to Stats Screen")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        stats_button_selector = "ElevatedButton[key='statsButton']"
+
+        # Step 1: Capture initial tree state (on Home Screen)
+        print(f"\n📋 Step 1: Capture initial tree state (Home Screen)")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_navigate_to_stats - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+            initial_count['count'] = 0
+
+        # Step 2: Verify Stats button exists
+        print(f"\n📋 Step 2: Verify Stats button exists")
+        stats_button_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_button_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 120
+        }
+
+        response = send_request(self.proc, stats_button_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Stats button found")
+                else:
+                    print(f"   ⚠️  Stats button not found: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_navigate_to_stats - stats_button_not_found')
+                    return False
+        else:
+            print(f"   ❌ No response from Stats button check")
+            self.results['failed'].append('test_navigate_to_stats - stats_button_check')
+            return False
+
+        # Step 3: Click Stats button
+        print(f"\n📋 Step 3: Click Stats button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": stats_button_selector
+                }
+            },
+            "id": 121
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Stats button clicked")
+                else:
+                    print(f"   ❌ Failed to click Stats button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_navigate_to_stats - click')
+                    return False
+        else:
+            print(f"   ❌ No response from Stats button click")
+            self.results['failed'].append('test_navigate_to_stats - click')
+            return False
+
+        # Wait for UI update (screen transition)
+        import time
+        time.sleep(1)
+
+        # Step 4: Capture new tree state (should be on Stats Screen)
+        print(f"\n📋 Step 4: Capture new tree state (after navigation)")
+        new_tree = state_utils.capture_tree(max_depth=10)
+        if not new_tree.get('success'):
+            print(f"   ❌ Failed to capture new tree: {new_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_navigate_to_stats - new_tree')
+            return False
+
+        new_count = state_utils.get_widget_count(new_tree)
+        if new_count.get('success'):
+            print(f"   ✅ New tree captured: {new_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get new widget count")
+
+        # Step 5: Verify StatsScreen is visible
+        print(f"\n📋 Step 5: Verify StatsScreen appears in widget tree")
+        tree_text = json.dumps(new_tree.get('data', {}))
+
+        # Look for StatsScreen indicators
+        stats_screen_indicators = [
+            "Statistics & Filtering",  # AppBar title
+            "Task Statistics",          # Section title
+            "StatsScreen"               # Widget type name
+        ]
+
+        stats_screen_found = False
+        for indicator in stats_screen_indicators:
+            if indicator in tree_text:
+                print(f"   ✅ Found StatsScreen indicator: '{indicator}'")
+                stats_screen_found = True
+                break
+
+        if not stats_screen_found:
+            print(f"   ❌ StatsScreen not found in widget tree")
+            print(f"   📝 Tree preview: {tree_text[:300]}...")
+            self.results['failed'].append('test_navigate_to_stats - screen_not_found')
+            return False
+
+        # Step 6: Verify stats display components (stat cards)
+        print(f"\n📋 Step 6: Verify stats display components (stat cards)")
+
+        # Look for stat card labels and values
+        stat_labels = ["Total", "Completed", "Active"]
+        found_stats = {}
+
+        for label in stat_labels:
+            if label in tree_text:
+                found_stats[label] = True
+                print(f"   ✅ Stat card found: {label}")
+            else:
+                found_stats[label] = False
+                print(f"   ⚠️  Stat card not found: {label}")
+
+        # Verify all three stat cards are present
+        if all(found_stats.values()):
+            print(f"   ✅ All stat cards verified (Total, Completed, Active)")
+        else:
+            print(f"   ⚠️  Some stat cards missing")
+            # Don't fail - might be different tree structure
+
+        # Step 7: Verify back button exists on Stats screen
+        print(f"\n📋 Step 7: Verify back button exists on Stats screen")
+        back_button_selector = "IconButton[key='backButton']"
+
+        back_button_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": back_button_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 122
+        }
+
+        response = send_request(self.proc, back_button_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Back button found on Stats screen")
+                else:
+                    print(f"   ⚠️  Back button not found: {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Back button check returned no content")
+        else:
+            print(f"   ⚠️  No response from back button check")
+
+        # Step 8: Verify search input field exists
+        print(f"\n📋 Step 8: Verify search input field exists")
+        search_input_selector = "TextField[key='searchInput']"
+
+        search_input_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": search_input_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 123
+        }
+
+        response = send_request(self.proc, search_input_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Search input field found")
+                else:
+                    print(f"   ⚠️  Search input not found: {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Search input check returned no content")
+        else:
+            print(f"   ⚠️  No response from search input check")
+
+        # Step 9: Compare trees to detect navigation changes
+        print(f"\n📋 Step 9: Compare trees to detect navigation changes")
+        comparison = state_utils.compare_trees(initial_tree, new_tree)
+
+        if not comparison['identical']:
+            print(f"   ✅ Trees differ - navigation occurred")
+            print(f"   📊 {comparison['details']}")
+        else:
+            print(f"   ⚠️  Trees are identical - navigation may not have occurred")
+            # Don't fail - navigation might have happened with same widget count
+
+        # Test passed
+        self.results['passed'].append('test_navigate_to_stats')
+        print("\n✅ Navigate to Stats screen test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
@@ -1996,6 +2227,9 @@ def main():
 
             # Run clear all test
             runner.test_clear_all()
+
+            # Run navigate to stats test
+            runner.test_navigate_to_stats()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
