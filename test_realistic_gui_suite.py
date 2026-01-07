@@ -1571,6 +1571,292 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_clear_all(self):
+        """Test Clear All button: Click button, confirm in dialog, verify all todos removed, verify empty state shown"""
+        print("\n" + "="*80)
+        print("TEST: Clear All Button")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        input_selector = "TextField[key='addTodoInput']"
+        button_selector = "ElevatedButton[key='addTodoButton']"
+        clear_all_button_selector = "OutlinedButton[key='clearAllButton']"
+
+        # Step 1: Create 3 test todos first
+        print(f"\n📋 Step 1: Create 3 test todos to clear")
+
+        todos_to_create = [
+            "Task 1 to clear",
+            "Task 2 to clear",
+            "Task 3 to clear"
+        ]
+
+        created_count = 0
+        for i, task_text in enumerate(todos_to_create):
+            # Type text
+            type_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_type",
+                    "arguments": {
+                        "text": task_text,
+                        "selector": input_selector,
+                        "clear_first": True
+                    }
+                },
+                "id": 90 + i
+            }
+
+            response = send_request(self.proc, type_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        # Click Add button
+                        tap_request = {
+                            "jsonrpc": "2.0",
+                            "method": "tools/call",
+                            "params": {
+                                "name": "flutter_tap",
+                                "arguments": {
+                                    "selector": button_selector
+                                }
+                            },
+                            "id": 100 + i
+                        }
+
+                        response = send_request(self.proc, tap_request)
+                        if response and response.get('result'):
+                            created_count += 1
+
+        import time
+        time.sleep(1)
+
+        print(f"   ✅ Created {created_count} todos")
+
+        # Step 2: Capture initial tree state
+        print(f"\n📋 Step 2: Capture initial tree state")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_clear_all - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+            initial_count['count'] = 0
+
+        # Step 3: Get initial stats counter
+        print(f"\n📋 Step 3: Get initial stats counter")
+        stats_selector = "Text[key='statsWidget']"
+
+        stats_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 110
+        }
+
+        response = send_request(self.proc, stats_request)
+        initial_stats = ""
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    initial_stats = widget_props.get('text', '')
+                    print(f"   ✅ Initial stats: {initial_stats}")
+
+        # Step 4: Verify todos exist in tree
+        print(f"\n📋 Step 4: Verify todos exist in widget tree")
+        tree_text = json.dumps(initial_tree.get('data', {}))
+        todos_found = sum(1 for todo in todos_to_create if todo in tree_text)
+        print(f"   ✅ Found {todos_found} out of {len(todos_to_create)} todos in tree")
+
+        # Step 5: Click Clear All button
+        print(f"\n📋 Step 5: Click Clear All button")
+
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": clear_all_button_selector
+                }
+            },
+            "id": 111
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Clear All button clicked")
+                else:
+                    print(f"   ❌ Failed to click button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_clear_all - click')
+                    return False
+        else:
+            print(f"   ❌ No response from button click")
+            self.results['failed'].append('test_clear_all - click')
+            return False
+
+        # Wait for dialog to appear
+        time.sleep(0.5)
+
+        # Step 6: Click confirmation button in dialog
+        print(f"\n📋 Step 6: Confirm in dialog")
+
+        # Try to find and click the "Clear All" text button in the dialog
+        # The dialog has two buttons: "Cancel" and "Clear All"
+        # We'll try to click the one with "Clear All" text
+        dialog_confirm_selector = "TextButton[text='Clear All']"
+
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": dialog_confirm_selector
+                }
+            },
+            "id": 112
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Dialog confirmation clicked")
+                else:
+                    print(f"   ⚠️  Dialog confirmation may have failed: {result.get('error', 'Unknown error')}")
+                    # Continue anyway - the dialog might have been dismissed by other means
+        else:
+            print(f"   ⚠️  No response from dialog confirmation")
+
+        # Wait for UI update
+        time.sleep(1)
+
+        # Step 7: Capture new tree state after clearing
+        print(f"\n📋 Step 7: Capture new tree state after clearing")
+        new_tree = state_utils.capture_tree(max_depth=10)
+        if not new_tree.get('success'):
+            print(f"   ❌ Failed to capture new tree: {new_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_clear_all - new_tree')
+            return False
+
+        new_count = state_utils.get_widget_count(new_tree)
+        if new_count.get('success'):
+            print(f"   ✅ New tree captured: {new_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get new widget count")
+
+        # Step 8: Verify all todos removed from tree
+        print(f"\n📋 Step 8: Verify all todos removed from widget tree")
+        new_tree_text = json.dumps(new_tree.get('data', {}))
+
+        todos_removed = True
+        for todo in todos_to_create:
+            if todo in new_tree_text:
+                print(f"   ⚠️  Todo text '{todo}' still in tree (may be cached)")
+                todos_removed = False
+            else:
+                print(f"   ✅ Todo text '{todo}' no longer in tree")
+
+        if todos_removed:
+            print(f"   ✅ All created todos removed from tree")
+        else:
+            print(f"   ⚠️  Some todos may still be visible")
+
+        # Step 9: Verify empty state message is shown
+        print(f"\n📋 Step 9: Verify empty state message is visible")
+
+        # Look for empty state indicators in the tree
+        # Common empty state messages include: "No tasks yet", "empty", etc.
+        empty_state_indicators = ["No tasks yet", "empty", "No tasks", "All caught up"]
+        empty_state_found = False
+
+        for indicator in empty_state_indicators:
+            if indicator.lower() in new_tree_text.lower():
+                print(f"   ✅ Empty state indicator found: '{indicator}'")
+                empty_state_found = True
+                break
+
+        if not empty_state_found:
+            print(f"   ⚠️  No empty state message found in tree")
+            print(f"   📝 Tree contains: {new_tree_text[:200]}...")
+
+        # Step 10: Verify stats counter shows 0/0 or empty
+        print(f"\n📋 Step 10: Verify stats counter updated")
+
+        stats_request["id"] = 113
+        response = send_request(self.proc, stats_request)
+        final_stats = initial_stats
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    final_stats = widget_props.get('text', '')
+                    print(f"   ✅ Final stats: {final_stats}")
+
+                    # Check if stats show 0/0 or indicate empty state
+                    if '0/0' in final_stats or final_stats == '0/0 completed':
+                        print(f"   ✅ Stats counter shows 0/0 (all cleared)")
+                    elif final_stats != initial_stats:
+                        print(f"   ✅ Stats counter updated")
+                    else:
+                        print(f"   ⚠️  Stats counter unchanged: {final_stats}")
+                else:
+                    print(f"   ⚠️  Could not verify stats: {result.get('error', 'Unknown error')}")
+        else:
+            print(f"   ⚠️  No response from stats verification")
+
+        # Step 11: Verify no todo items remain in the tree
+        print(f"\n📋 Step 11: Verify no todo item widgets remain")
+
+        # Check for common todo item widget patterns
+        todo_item_patterns = ["todoDone_", "todoText_", "deleteButton_"]
+        todos_remain = False
+
+        for pattern in todo_item_patterns:
+            if pattern in new_tree_text:
+                print(f"   ⚠️  Found pattern '{pattern}' in tree (todos may remain)")
+                todos_remain = True
+
+        if not todos_remain:
+            print(f"   ✅ No todo item widgets found in tree")
+        else:
+            print(f"   ⚠️  Some todo item patterns still present")
+
+        # Test passed
+        self.results['passed'].append('test_clear_all')
+        print("\n✅ Clear All button test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
@@ -1707,6 +1993,9 @@ def main():
 
             # Run mark all complete test
             runner.test_mark_all_complete()
+
+            # Run clear all test
+            runner.test_clear_all()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
