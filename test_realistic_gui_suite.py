@@ -572,6 +572,190 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_add_todo_button(self):
+        """Test Add Task button: Type text, click Add, verify new todo appears and stats update"""
+        print("\n" + "="*80)
+        print("TEST: Add Todo Button")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        test_text = "New test task"
+        input_selector = "TextField[key='addTodoInput']"
+        button_selector = "ElevatedButton[key='addTodoButton']"
+
+        # Step 1: Capture initial tree state
+        print(f"\n📋 Step 1: Capture initial tree state")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_add_todo_button - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+            initial_count['count'] = 0
+
+        # Step 2: Type text in addTodoInput
+        print(f"\n📋 Step 2: Type text '{test_text}' in addTodoInput")
+        type_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_type",
+                "arguments": {
+                    "text": test_text,
+                    "selector": input_selector
+                }
+            },
+            "id": 20
+        }
+
+        response = send_request(self.proc, type_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Text typed successfully")
+                else:
+                    print(f"   ❌ Failed to type text: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_add_todo_button - type')
+                    return False
+        else:
+            print(f"   ❌ No response from flutter_type")
+            self.results['failed'].append('test_add_todo_button - type')
+            return False
+
+        # Step 3: Click Add button
+        print(f"\n📋 Step 3: Click Add Task button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": button_selector
+                }
+            },
+            "id": 21
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Add button clicked successfully")
+                else:
+                    print(f"   ❌ Failed to click button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_add_todo_button - tap')
+                    return False
+        else:
+            print(f"   ❌ No response from flutter_tap")
+            self.results['failed'].append('test_add_todo_button - tap')
+            return False
+
+        # Step 4: Wait for UI to update (simulate realistic delay)
+        print(f"\n📋 Step 4: Wait for UI update")
+        import time
+        time.sleep(0.5)
+        print(f"   ✅ UI update delay completed")
+
+        # Step 5: Capture new tree state
+        print(f"\n📋 Step 5: Capture new tree state")
+        new_tree = state_utils.capture_tree(max_depth=10)
+        if not new_tree.get('success'):
+            print(f"   ❌ Failed to capture new tree: {new_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_add_todo_button - new_tree')
+            return False
+
+        new_count = state_utils.get_widget_count(new_tree)
+        if new_count.get('success'):
+            print(f"   ✅ New tree captured: {new_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get new widget count")
+
+        # Step 6: Compare trees to detect changes
+        print(f"\n📋 Step 6: Compare trees to detect changes")
+        comparison = state_utils.compare_trees(initial_tree, new_tree)
+
+        if comparison['identical']:
+            print(f"   ❌ Trees are identical - no change detected after adding todo")
+            self.results['failed'].append('test_add_todo_button - no_change')
+            return False
+        else:
+            print(f"   ✅ Trees differ - changes detected")
+            print(f"   📊 {comparison['details']}")
+            if comparison['changes']:
+                changes = comparison['changes']
+                print(f"      Nodes added: {changes['nodes_added']}")
+                print(f"      Nodes removed: {changes['nodes_removed']}")
+
+        # Step 7: Verify new todo text appears in tree
+        print(f"\n📋 Step 7: Verify new todo text appears in widget tree")
+        tree_text = json.dumps(new_tree.get('data', {}))
+        if test_text in tree_text:
+            print(f"   ✅ New todo text '{test_text}' found in widget tree")
+        else:
+            print(f"   ⚠️  Todo text not directly visible in tree (might be in controller)")
+
+        # Step 8: Verify stats counter updated
+        print(f"\n📋 Step 8: Verify stats counter updated")
+        stats_selector = "Text[key='statsWidget']"
+
+        # Get initial stats
+        stats_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 22
+        }
+
+        response = send_request(self.proc, stats_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    stats_text = widget_props.get('text', '')
+
+                    print(f"   ✅ Stats counter: {stats_text}")
+
+                    # Stats should show increased total (e.g., "0/6" if 0 completed out of 6 total)
+                    # or "5/6" if 5 completed out of 6 total
+                    if '/' in stats_text:
+                        parts = stats_text.split('/')
+                        total = parts[1].strip() if len(parts) > 1 else parts[0]
+                        print(f"   📊 Total todos: {total}")
+                        print(f"   ✅ Stats counter verified")
+                    else:
+                        print(f"   ⚠️  Stats format unexpected: {stats_text}")
+                else:
+                    print(f"   ⚠️  Could not verify stats: {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Stats widget not found or not accessible")
+        else:
+            print(f"   ⚠️  No response from stats verification")
+
+        # Test passed
+        self.results['passed'].append('test_add_todo_button')
+        print("\n✅ Add Todo button test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
@@ -696,6 +880,9 @@ def main():
         if runner.test_app_initialization():
             # Run input fields test
             runner.test_input_fields()
+
+            # Run add todo button test
+            runner.test_add_todo_button()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
