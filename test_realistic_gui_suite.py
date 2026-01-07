@@ -7,7 +7,13 @@ import subprocess
 import json
 import sys
 import io
+import os
 from datetime import datetime
+
+# Python version check
+if sys.version_info < (3, 7):
+    print(f"❌ Error: Python 3.7+ required, found {sys.version}")
+    sys.exit(1)
 
 # Ensure UTF-8 output
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -245,7 +251,14 @@ class StateUtils:
 
 class TestRunner:
     def __init__(self):
-        self.executable = r"E:\C++\FlutterReflect\build\Debug\flutter_reflect.exe"
+        # Use relative path from script directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.executable = os.path.join(script_dir, 'build', 'Debug', 'flutter_reflect.exe')
+
+        # Allow override via environment variable
+        if 'FLUTTER_REFLECT_EXE' in os.environ:
+            self.executable = os.environ['FLUTTER_REFLECT_EXE']
+
         self.results = {
             'passed': [],
             'failed': [],
@@ -457,9 +470,28 @@ class TestRunner:
 
         Args:
             component_key: Key from all_components dictionary
+
+        NOTE: This method should be called in each test method when a component
+        is successfully tested. Currently not fully implemented across all tests.
+        TODO: Add calls to mark_component_tested() in each test method to enable
+              accurate coverage reporting.
         """
         if component_key in self.all_components:
             self.components_tested.add(component_key)
+
+    def mark_components_tested(self, component_keys):
+        """
+        Mark multiple components as tested
+
+        Args:
+            component_keys: List of keys from all_components dictionary
+
+        NOTE: Helper method for batch marking. Use this when multiple components
+              are tested in a single test method.
+        """
+        for key in component_keys:
+            if key in self.all_components:
+                self.components_tested.add(key)
 
     def test_input_fields(self):
         """Test input field typing, verification, and clearing"""
