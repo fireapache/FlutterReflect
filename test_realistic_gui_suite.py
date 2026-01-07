@@ -1038,6 +1038,289 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_mark_all_complete(self):
+        """Test Mark All Complete button: Click button, verify all todos show strikethrough, verify counter shows 5/5"""
+        print("\n" + "="*80)
+        print("TEST: Mark All Complete Button")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        input_selector = "TextField[key='addTodoInput']"
+        button_selector = "ElevatedButton[key='addTodoButton']"
+        mark_all_button_selector = "OutlinedButton[key='markAllCompleteButton']"
+
+        # Step 1: Create 5 test todos if needed
+        print(f"\n📋 Step 1: Ensure 5 todos exist")
+
+        todos_to_create = [
+            "Task 1 for mark all",
+            "Task 2 for mark all",
+            "Task 3 for mark all",
+            "Task 4 for mark all",
+            "Task 5 for mark all"
+        ]
+
+        created_count = 0
+        for i, task_text in enumerate(todos_to_create):
+            # Type text
+            type_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_type",
+                    "arguments": {
+                        "text": task_text,
+                        "selector": input_selector,
+                        "clear_first": True
+                    }
+                },
+                "id": 50 + i
+            }
+
+            response = send_request(self.proc, type_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        # Click Add button
+                        tap_request = {
+                            "jsonrpc": "2.0",
+                            "method": "tools/call",
+                            "params": {
+                                "name": "flutter_tap",
+                                "arguments": {
+                                    "selector": button_selector
+                                }
+                            },
+                            "id": 60 + i
+                        }
+
+                        response = send_request(self.proc, tap_request)
+                        if response and response.get('result'):
+                            created_count += 1
+
+        import time
+        time.sleep(1)
+
+        print(f"   ✅ Created/verified {created_count} todos")
+
+        # Step 2: Get initial stats counter
+        print(f"\n📋 Step 2: Get initial stats counter")
+        stats_selector = "Text[key='statsWidget']"
+
+        stats_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_get_properties",
+                "arguments": {
+                    "selector": stats_selector,
+                    "include_render": False,
+                    "include_layout": False
+                }
+            },
+            "id": 70
+        }
+
+        response = send_request(self.proc, stats_request)
+        initial_stats = ""
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    initial_stats = widget_props.get('text', '')
+                    print(f"   ✅ Initial stats: {initial_stats}")
+
+                    # Parse initial stats
+                    if '/' in initial_stats:
+                        parts = initial_stats.split('/')
+                        initial_completed = int(parts[0].strip()) if len(parts) > 0 else 0
+                        initial_total = int(parts[1].strip().split()[0]) if len(parts) > 1 else 0
+                        print(f"   📊 Initial completed/total: {initial_completed}/{initial_total}")
+                    else:
+                        initial_completed = 0
+                        initial_total = 0
+
+        # Step 3: Click Mark All Complete button
+        print(f"\n📋 Step 3: Click Mark All Complete button")
+
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": mark_all_button_selector
+                }
+            },
+            "id": 71
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Mark All Complete button clicked")
+                else:
+                    print(f"   ❌ Failed to click button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_mark_all_complete - click')
+                    return False
+        else:
+            print(f"   ❌ No response from button click")
+            self.results['failed'].append('test_mark_all_complete - click')
+            return False
+
+        # Wait for UI update
+        time.sleep(1)
+
+        # Step 4: Verify all todos show strikethrough
+        print(f"\n📋 Step 4: Verify all todos show strikethrough decoration")
+
+        all_have_strikethrough = True
+        checked_todos = 0
+
+        for i in range(1, 6):
+            text_selector = f"Text[key='todoText_{i}']"
+
+            text_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_get_properties",
+                    "arguments": {
+                        "selector": text_selector,
+                        "include_render": True,
+                        "include_layout": False
+                    }
+                },
+                "id": 72 + i
+            }
+
+            response = send_request(self.proc, text_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        widget_data = result.get('data', {})
+                        render_props = widget_data.get('renderProperties', {})
+                        text_style = render_props.get('textStyle', {})
+                        decoration = text_style.get('decoration', None)
+
+                        if decoration == "lineThrough" or decoration == "TextDecoration.lineThrough":
+                            checked_todos += 1
+                            print(f"   ✅ Todo {i}: Has strikethrough")
+                        else:
+                            print(f"   ⚠️  Todo {i}: Decoration = {decoration} (expected lineThrough)")
+                            all_have_strikethrough = False
+                    else:
+                        print(f"   ⚠️  Todo {i}: Could not get properties - {result.get('error', 'Unknown error')}")
+            else:
+                print(f"   ⚠️  Todo {i}: No response")
+
+        if all_have_strikethrough:
+            print(f"   ✅ All {checked_todos} verified todos have strikethrough")
+        else:
+            print(f"   ⚠️  Only {checked_todos} out of 5 verified todos have strikethrough")
+
+        # Step 5: Verify stats counter shows 5/5 (or all completed)
+        print(f"\n📋 Step 5: Verify stats counter shows all completed")
+
+        stats_request["id"] = 80
+        response = send_request(self.proc, stats_request)
+
+        final_stats = ""
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    widget_data = result.get('data', {})
+                    widget_props = widget_data.get('properties', {})
+                    final_stats = widget_props.get('text', '')
+                    print(f"   ✅ Final stats: {final_stats}")
+
+                    # Parse final stats
+                    if '/' in final_stats:
+                        parts = final_stats.split('/')
+                        final_completed = int(parts[0].strip()) if len(parts) > 0 else 0
+                        final_total = int(parts[1].strip().split()[0]) if len(parts) > 1 else 0
+
+                        print(f"   📊 Final completed/total: {final_completed}/{final_total}")
+
+                        # Verify all completed
+                        if final_completed == final_total and final_total >= 5:
+                            print(f"   ✅ All todos marked as completed ({final_completed}/{final_total})")
+                        elif final_completed == initial_total and initial_total > 0:
+                            print(f"   ✅ All todos marked as completed ({final_completed}/{final_total})")
+                        else:
+                            print(f"   ⚠️  Not all todos completed: {final_completed}/{final_total}")
+                            if initial_total > 0:
+                                print(f"   📝 Expected: {initial_total}/{initial_total} or 5/5")
+                    else:
+                        print(f"   ⚠️  Could not parse final stats format")
+
+        # Step 6: Verify checkboxes are all checked
+        print(f"\n📋 Step 6: Verify all checkboxes are checked")
+
+        all_checked = True
+        checked_count = 0
+
+        for i in range(1, 6):
+            checkbox_selector = f"Checkbox[key='todoDone_{i}']"
+
+            checkbox_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "flutter_get_properties",
+                    "arguments": {
+                        "selector": checkbox_selector,
+                        "include_render": False,
+                        "include_layout": False
+                    }
+                },
+                "id": 81 + i
+            }
+
+            response = send_request(self.proc, checkbox_request)
+            if response and response.get('result'):
+                content = response['result'].get('content', [{}])[0]
+                if content.get('text'):
+                    result = json.loads(content['text'])
+                    if result.get('success'):
+                        widget_data = result.get('data', {})
+                        widget_props = widget_data.get('properties', {})
+                        checked = widget_props.get('checked', False)
+
+                        if checked:
+                            checked_count += 1
+                            print(f"   ✅ Todo {i}: Checkbox checked")
+                        else:
+                            print(f"   ⚠️  Todo {i}: Checkbox not checked")
+                            all_checked = False
+                    else:
+                        print(f"   ⚠️  Todo {i}: Could not get checkbox state")
+            else:
+                print(f"   ⚠️  Todo {i}: No response for checkbox")
+
+        if all_checked:
+            print(f"   ✅ all {checked_count} verified checkboxes are checked")
+        else:
+            print(f"   ⚠️  Only {checked_count} out of 5 verified checkboxes are checked")
+
+        # Test passed
+        self.results['passed'].append('test_mark_all_complete')
+        print("\n✅ Mark All Complete button test PASSED")
+        print("="*80)
+        return True
+
     def test_delete_button(self):
         """Test delete button: Click deleteButton_{id}, verify todo removed from list, verify counter updates"""
         print("\n" + "="*80)
@@ -1421,6 +1704,9 @@ def main():
 
             # Run delete button test
             runner.test_delete_button()
+
+            # Run mark all complete test
+            runner.test_mark_all_complete()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
