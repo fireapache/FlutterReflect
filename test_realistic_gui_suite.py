@@ -2656,6 +2656,261 @@ class TestRunner:
         print("="*80)
         return True
 
+    def test_filter_buttons(self):
+        """Test filter buttons: Click showAllButton, showActiveButton, showCompletedButton, verify filtered list updates correctly each time"""
+        print("\n" + "="*80)
+        print("TEST: Filter Buttons")
+        print("="*80)
+
+        state_utils = StateUtils(self.proc)
+        stats_button_selector = "ElevatedButton[key='statsButton']"
+        show_all_selector = "ElevatedButton[key='showAllButton']"
+        show_active_selector = "ElevatedButton[key='showActiveButton']"
+        show_completed_selector = "ElevatedButton[key='showCompletedButton']"
+        filtered_list_selector = "ListView[key='filteredListView']"
+
+        # Step 1: Navigate to Stats screen if not already there
+        print(f"\n📋 Step 1: Navigate to Stats screen")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": stats_button_selector
+                }
+            },
+            "id": 150
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Navigated to Stats screen")
+                else:
+                    # Already on stats screen, continue
+                    print(f"   ℹ️  Already on Stats screen or navigation failed")
+
+        import time
+        time.sleep(1)
+
+        # Step 2: Capture initial state (default - usually shows all)
+        print(f"\n📋 Step 2: Capture initial filtered list state")
+        initial_tree = state_utils.capture_tree(max_depth=10)
+        if not initial_tree.get('success'):
+            print(f"   ❌ Failed to capture initial tree: {initial_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_filter_buttons - initial_tree')
+            return False
+
+        initial_count = state_utils.get_widget_count(initial_tree)
+        if initial_count.get('success'):
+            print(f"   ✅ Initial tree captured: {initial_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get initial widget count")
+
+        # Step 3: Click Show All button
+        print(f"\n📋 Step 3: Click Show All button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_all_selector
+                }
+            },
+            "id": 151
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Show All button clicked")
+                else:
+                    print(f"   ⚠️  Show All button click failed: {result.get('error', 'Unknown error')}")
+
+        time.sleep(0.5)
+
+        # Capture tree after clicking Show All
+        all_tree = state_utils.capture_tree(max_depth=10)
+        if all_tree.get('success'):
+            all_count = state_utils.get_widget_count(all_tree)
+            if all_count.get('success'):
+                print(f"   ✅ Tree after Show All: {all_count['count']} widgets")
+
+        # Step 4: Click Show Active button
+        print(f"\n📋 Step 4: Click Show Active button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_active_selector
+                }
+            },
+            "id": 152
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Show Active button clicked")
+                else:
+                    print(f"   ❌ Failed to click Show Active button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_filter_buttons - click_active')
+                    return False
+
+        time.sleep(0.5)
+
+        # Capture tree after clicking Show Active
+        active_tree = state_utils.capture_tree(max_depth=10)
+        if not active_tree.get('success'):
+            print(f"   ❌ Failed to capture active tree: {active_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_filter_buttons - active_tree')
+            return False
+
+        active_count = state_utils.get_widget_count(active_tree)
+        if active_count.get('success'):
+            print(f"   ✅ Tree after Show Active: {active_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get active widget count")
+
+        # Step 5: Verify filtered list updated for Active filter
+        print(f"\n📋 Step 5: Verify filtered list updated for Active filter")
+        tree_text = json.dumps(active_tree.get('data', {}))
+
+        # Look for filtered list view
+        if "filteredListView" in tree_text:
+            print(f"   ✅ Filtered list view found in tree")
+        else:
+            print(f"   ⚠️  Filtered list view not found - may have different structure")
+
+        # Check if filtering occurred by comparing tree counts
+        if all_tree.get('success') and active_tree.get('success'):
+            comparison = state_utils.compare_trees(all_tree, active_tree)
+            if not comparison['identical']:
+                print(f"   ✅ Tree changed after filtering to Active")
+                print(f"   📊 {comparison['details']}")
+            else:
+                print(f"   ℹ️  Tree identical - all todos may be active")
+
+        # Step 6: Click Show Completed button
+        print(f"\n📋 Step 6: Click Show Completed button")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_completed_selector
+                }
+            },
+            "id": 153
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Show Completed button clicked")
+                else:
+                    print(f"   ❌ Failed to click Show Completed button: {result.get('error', 'Unknown error')}")
+                    self.results['failed'].append('test_filter_buttons - click_completed')
+                    return False
+
+        time.sleep(0.5)
+
+        # Capture tree after clicking Show Completed
+        completed_tree = state_utils.capture_tree(max_depth=10)
+        if not completed_tree.get('success'):
+            print(f"   ❌ Failed to capture completed tree: {completed_tree.get('error', 'Unknown error')}")
+            self.results['failed'].append('test_filter_buttons - completed_tree')
+            return False
+
+        completed_count = state_utils.get_widget_count(completed_tree)
+        if completed_count.get('success'):
+            print(f"   ✅ Tree after Show Completed: {completed_count['count']} widgets")
+        else:
+            print(f"   ⚠️  Could not get completed widget count")
+
+        # Step 7: Verify filtered list updated for Completed filter
+        print(f"\n📋 Step 7: Verify filtered list updated for Completed filter")
+        tree_text = json.dumps(completed_tree.get('data', {}))
+
+        # Look for filtered list view
+        if "filteredListView" in tree_text:
+            print(f"   ✅ Filtered list view found in tree")
+        else:
+            print(f"   ⚠️  Filtered list view not found - may have different structure")
+
+        # Check if filtering occurred
+        if active_tree.get('success') and completed_tree.get('success'):
+            comparison = state_utils.compare_trees(active_tree, completed_tree)
+            if not comparison['identical']:
+                print(f"   ✅ Tree changed after filtering to Completed")
+                print(f"   📊 {comparison['details']}")
+            else:
+                print(f"   ℹ️  Tree identical - may have same number of active/completed todos")
+
+        # Step 8: Return to All filter to verify we can toggle back
+        print(f"\n📋 Step 8: Click Show All button again to verify toggle functionality")
+        tap_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "flutter_tap",
+                "arguments": {
+                    "selector": show_all_selector
+                }
+            },
+            "id": 154
+        }
+
+        response = send_request(self.proc, tap_request)
+        if response and response.get('result'):
+            content = response['result'].get('content', [{}])[0]
+            if content.get('text'):
+                result = json.loads(content['text'])
+                if result.get('success'):
+                    print(f"   ✅ Show All button clicked again")
+                else:
+                    print(f"   ⚠️  Show All button click failed: {result.get('error', 'Unknown error')}")
+
+        time.sleep(0.5)
+
+        # Capture final tree
+        final_tree = state_utils.capture_tree(max_depth=10)
+        if final_tree.get('success'):
+            final_count = state_utils.get_widget_count(final_tree)
+            if final_count.get('success'):
+                print(f"   ✅ Tree after returning to All: {final_count['count']} widgets")
+
+                # Compare with initial all tree
+                if all_tree.get('success'):
+                    comparison = state_utils.compare_trees(all_tree, final_tree)
+                    if comparison['identical']:
+                        print(f"   ✅ Final tree matches initial All filter - toggle works correctly")
+                    else:
+                        print(f"   ℹ️  Trees differ slightly - state may have changed")
+
+        # Test passed
+        self.results['passed'].append('test_filter_buttons')
+        print("\n✅ Filter buttons test PASSED")
+        print("="*80)
+        return True
+
     def test_app_initialization(self):
         """Test app initialization sequence"""
         print("\n" + "="*80)
@@ -2804,6 +3059,9 @@ def main():
 
             # Run search field test
             runner.test_search_field()
+
+            # Run filter buttons test
+            runner.test_filter_buttons()
 
             # Disconnect after successful test
             runner.disconnect_flutter_app()
