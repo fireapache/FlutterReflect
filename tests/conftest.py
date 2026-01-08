@@ -18,7 +18,8 @@ import socket
 import signal
 
 # Configuration
-MCP_TIMEOUT = 2.0  # seconds - max time for any tool call
+MCP_TIMEOUT = 3.0  # seconds - max time for any tool call (includes network overhead)
+TIMEOUT_TOLERANCE = 0.1  # seconds - buffer for timing assertions to account for Python overhead
 UI_SETTLE_TIME = 1.0  # seconds - wait after UI interaction before checking state
 FLUTTER_APP_PORT = 8181
 FLUTTER_APP_URI = f"ws://127.0.0.1:{FLUTTER_APP_PORT}/ws"
@@ -301,6 +302,32 @@ def mcp_client(mcp_server):
     return client
 
 
+@pytest.fixture
+def fresh_mcp_client(mcp_executable):
+    """Create a fresh MCP client (new process) for tests that might corrupt server state"""
+    proc = subprocess.Popen(
+        [mcp_executable],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    client = MCPClient(proc)
+    if not client.initialize():
+        proc.terminate()
+        pytest.fail("Failed to initialize fresh MCP client")
+
+    yield client
+
+    # Cleanup
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 @pytest.fixture(scope="session")
 def flutter_app_manager():
     """Session-scoped Flutter app manager that auto-spawns app if needed"""
@@ -334,17 +361,134 @@ def flutter_app_running(flutter_app_manager):
 @pytest.fixture
 def connected_client(mcp_client, flutter_app_running):
     """Return an MCP client that's connected to the Flutter app"""
+    # First disconnect any existing connection (cleanup from previous tests)
+    print(f"\n  [connected_client] Disconnecting any existing connection...")
+    mcp_client.call("disconnect", {}, timeout=2.0)
+
+    # Small delay to ensure server state is clean
+    time.sleep(0.5)
+
+    print(f"  [connected_client] Checking if Flutter app is running on port {FLUTTER_APP_PORT}...")
+    if not is_flutter_app_running():
+        pytest.fail(f"Flutter app not running on port {FLUTTER_APP_PORT}")
+
+    # Connect to Flutter app with retry
+    max_retries = 3
+    last_error = None
+
+    for attempt in range(max_retries):
+        print(f"  [connected_client] Connection attempt {attempt + 1}/{max_retries}...")
+        result = mcp_client.call("connect", {"uri": FLUTTER_APP_URI}, timeout=10.0)
+        print(f"  [connected_client] Result: {str(result)[:200]}")
+
+        if result and 'result' in result:
+            # Check if connection was successful
+            content = result['result'].get('content', [])
+            content_text = content[0].get('text', '') if content else ''
+            if 'error' not in content_text.lower():
+                print(f"  [connected_client] Connected successfully!")
+                yield mcp_client
+                # Disconnect after test
+                mcp_client.call("disconnect", {})
+                return
+            else:
+                # Got an error in content - add delay before retry
+                print(f"  [connected_client] Server returned error, waiting before retry...")
+                time.sleep(2)
+
+        if result and 'error' in result:
+            last_error = result.get('error', {}).get('message', 'Unknown error')
+        elif result:
+            last_error = f"Connection response had error in content"
+        else:
+            last_error = "No response from connect"
+
+        print(f"  [connected_client] Attempt {attempt + 1} failed: {last_error}")
+        time.sleep(1)
+
+    pytest.fail(f"Failed to connect to Flutter app after {max_retries} attempts: {last_error}")
+
+
+@pytest.fixture
+def fresh_connected_client(mcp_executable, flutter_app_running):
+    """Return a fresh MCP client (new process) that's connected to the Flutter app.
+
+    Use this instead of connected_client when running after tests that may have
+    corrupted the session-scoped MCP server state.
+    """
+    # Start fresh MCP process
+    proc = subprocess.Popen(
+        [mcp_executable],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    client = MCPClient(proc)
+    if not client.initialize():
+        proc.terminate()
+        pytest.fail("Failed to initialize fresh MCP client")
+
+    print(f"\n  [fresh_connected_client] Checking if Flutter app is running on port {FLUTTER_APP_PORT}...")
+    if not is_flutter_app_running():
+        proc.terminate()
+        pytest.fail(f"Flutter app not running on port {FLUTTER_APP_PORT}")
+
     # Connect to Flutter app
-    result = mcp_client.call("connect", {"uri": FLUTTER_APP_URI}, timeout=5.0)
+    print(f"  [fresh_connected_client] Connecting to {FLUTTER_APP_URI}...")
+    result = client.call("connect", {"uri": FLUTTER_APP_URI}, timeout=10.0)
 
-    if not result or 'error' in result:
-        error_msg = result.get('error', {}).get('message', 'Unknown error') if result else 'No response'
-        pytest.fail(f"Failed to connect to Flutter app: {error_msg}")
+    if result and 'result' in result:
+        content = result['result'].get('content', [])
+        content_text = content[0].get('text', '') if content else ''
+        if 'error' not in content_text.lower():
+            print(f"  [fresh_connected_client] Connected successfully!")
+            yield client
+            # Cleanup
+            client.call("disconnect", {})
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            return
 
-    yield mcp_client
+    # Connection failed
+    proc.terminate()
+    error_msg = str(result)[:200] if result else "No response"
+    pytest.fail(f"Failed to connect fresh client to Flutter app: {error_msg}")
 
-    # Disconnect after test
-    mcp_client.call("disconnect", {})
+
+def has_error(result):
+    """Check if MCP result has an error (either JSON-RPC error or error in content)"""
+    if not result:
+        return True
+    # JSON-RPC error
+    if 'error' in result:
+        return True
+    # Error in content
+    if 'result' in result:
+        content = result['result'].get('content', [])
+        if content:
+            content_text = content[0].get('text', '')
+            if '"error"' in content_text.lower() or '"success": false' in content_text.lower():
+                return True
+    return False
+
+
+def get_error_message(result):
+    """Extract error message from MCP result"""
+    if not result:
+        return "No response"
+    if 'error' in result:
+        return result['error'].get('message', 'Unknown error')
+    if 'result' in result:
+        content = result['result'].get('content', [])
+        if content:
+            content_text = content[0].get('text', '')
+            return content_text
+    return "Unknown error"
 
 
 def find_widget(tree_result, widget_type=None, key=None, text=None):
