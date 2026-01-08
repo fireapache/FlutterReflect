@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_driver/driver_extension.dart';
 
 import 'models/todo_model.dart';
@@ -14,7 +16,7 @@ void main() {
       try {
         if (request == null) {
           return jsonEncode({
-            'result': 'success',
+            'success': true,
             'message': 'FlutterReflect handler registered (null request)',
           });
         }
@@ -22,24 +24,161 @@ void main() {
         final requestData = jsonDecode(request);
         final command = requestData['command'] as String?;
 
-        // Example custom commands can be added here
-        // For now, just return success to indicate handler is registered
+        switch (command) {
+          case 'tapAt':
+            final x = (requestData['x'] as num).toDouble();
+            final y = (requestData['y'] as num).toDouble();
+            await _performTapAt(x, y);
+            return jsonEncode({
+              'success': true,
+              'command': 'tapAt',
+              'x': x,
+              'y': y,
+            });
+
+          case 'scrollAt':
+            final x = (requestData['x'] as num).toDouble();
+            final y = (requestData['y'] as num).toDouble();
+            final dx = (requestData['dx'] as num).toDouble();
+            final dy = (requestData['dy'] as num).toDouble();
+            final duration = requestData['duration'] as int? ?? 300;
+            await _performScrollAt(x, y, dx, dy, duration);
+            return jsonEncode({
+              'success': true,
+              'command': 'scrollAt',
+              'x': x,
+              'y': y,
+              'dx': dx,
+              'dy': dy,
+            });
+
+          case 'longPressAt':
+            final x = (requestData['x'] as num).toDouble();
+            final y = (requestData['y'] as num).toDouble();
+            final duration = requestData['duration'] as int? ?? 500;
+            await _performLongPressAt(x, y, duration);
+            return jsonEncode({
+              'success': true,
+              'command': 'longPressAt',
+              'x': x,
+              'y': y,
+              'duration': duration,
+            });
+
+          default:
+            return jsonEncode({
+              'success': false,
+              'error': 'Unknown command: $command',
+            });
+        }
+      } catch (e, stackTrace) {
         return jsonEncode({
-          'result': 'success',
-          'message': 'FlutterReflect handler registered',
-          'command': command,
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-      } catch (e) {
-        return jsonEncode({
-          'result': 'error',
-          'message': e.toString(),
+          'success': false,
+          'error': e.toString(),
+          'stackTrace': stackTrace.toString(),
         });
       }
     },
   );
 
   runApp(const TodoApp());
+}
+
+/// Perform a tap at the given coordinates
+Future<void> _performTapAt(double x, double y) async {
+  final binding = WidgetsBinding.instance;
+  final position = Offset(x, y);
+
+  // Create pointer down event
+  final downEvent = PointerDownEvent(
+    position: position,
+    pointer: 1,
+    kind: PointerDeviceKind.touch,
+  );
+
+  // Create pointer up event
+  final upEvent = PointerUpEvent(
+    position: position,
+    pointer: 1,
+    kind: PointerDeviceKind.touch,
+  );
+
+  // Dispatch events
+  binding.handlePointerEvent(downEvent);
+  await Future.delayed(const Duration(milliseconds: 50));
+  binding.handlePointerEvent(upEvent);
+
+  // Wait for frame to process
+  await binding.endOfFrame;
+}
+
+/// Perform a scroll gesture at the given coordinates
+Future<void> _performScrollAt(
+    double x, double y, double dx, double dy, int durationMs) async {
+  final binding = WidgetsBinding.instance;
+  final startPosition = Offset(x, y);
+  final endPosition = Offset(x + dx, y + dy);
+
+  // Number of move events to simulate smooth scrolling
+  const steps = 10;
+  final stepDuration = Duration(milliseconds: durationMs ~/ steps);
+
+  // Pointer down
+  binding.handlePointerEvent(PointerDownEvent(
+    position: startPosition,
+    pointer: 2,
+    kind: PointerDeviceKind.touch,
+  ));
+
+  // Generate move events
+  for (int i = 1; i <= steps; i++) {
+    await Future.delayed(stepDuration);
+    final progress = i / steps;
+    final currentPosition = Offset(
+      startPosition.dx + (endPosition.dx - startPosition.dx) * progress,
+      startPosition.dy + (endPosition.dy - startPosition.dy) * progress,
+    );
+    binding.handlePointerEvent(PointerMoveEvent(
+      position: currentPosition,
+      delta: Offset(dx / steps, dy / steps),
+      pointer: 2,
+      kind: PointerDeviceKind.touch,
+    ));
+  }
+
+  // Pointer up
+  binding.handlePointerEvent(PointerUpEvent(
+    position: endPosition,
+    pointer: 2,
+    kind: PointerDeviceKind.touch,
+  ));
+
+  await binding.endOfFrame;
+}
+
+/// Perform a long press at the given coordinates
+Future<void> _performLongPressAt(double x, double y, int durationMs) async {
+  final binding = WidgetsBinding.instance;
+  final position = Offset(x, y);
+
+  // Pointer down
+  binding.handlePointerEvent(PointerDownEvent(
+    position: position,
+    pointer: 3,
+    kind: PointerDeviceKind.touch,
+  ));
+
+  // Wait for long press duration
+  await Future.delayed(Duration(milliseconds: durationMs));
+
+  // Pointer up
+  binding.handlePointerEvent(PointerUpEvent(
+    position: position,
+    pointer: 3,
+    kind: PointerDeviceKind.touch,
+  ));
+
+  await binding.endOfFrame;
 }
 
 class TodoApp extends StatefulWidget {
