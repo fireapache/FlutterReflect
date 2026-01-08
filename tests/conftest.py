@@ -3,6 +3,8 @@ FlutterReflect MCP Server - Test Fixtures
 
 Provides pytest fixtures for testing MCP tools with non-blocking operations.
 All tool calls should complete in < 2 seconds.
+
+Auto-spawns Flutter sample app if not running.
 """
 import pytest
 import subprocess
@@ -13,12 +15,14 @@ import threading
 import queue
 import time
 import socket
+import signal
 
 # Configuration
 MCP_TIMEOUT = 2.0  # seconds - max time for any tool call
 UI_SETTLE_TIME = 1.0  # seconds - wait after UI interaction before checking state
 FLUTTER_APP_PORT = 8181
 FLUTTER_APP_URI = f"ws://127.0.0.1:{FLUTTER_APP_PORT}/ws"
+FLUTTER_APP_STARTUP_TIMEOUT = 90  # seconds to wait for app to start
 
 
 def find_executable():
@@ -35,6 +39,15 @@ def find_executable():
     return None
 
 
+def find_flutter_sample_app():
+    """Find the Flutter sample app directory"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sample_app = os.path.join(base_dir, 'examples', 'flutter_sample_app')
+    if os.path.exists(sample_app):
+        return sample_app
+    return None
+
+
 def is_flutter_app_running(port=FLUTTER_APP_PORT):
     """Check if Flutter app is running on the specified port"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,6 +59,102 @@ def is_flutter_app_running(port=FLUTTER_APP_PORT):
         return False
     finally:
         sock.close()
+
+
+class FlutterAppManager:
+    """Manages Flutter app lifecycle for testing"""
+
+    def __init__(self, project_path, port=FLUTTER_APP_PORT):
+        self.project_path = project_path
+        self.port = port
+        self.process = None
+        self._spawned = False
+
+    def is_running(self):
+        """Check if app is running"""
+        return is_flutter_app_running(self.port)
+
+    def spawn(self, timeout=FLUTTER_APP_STARTUP_TIMEOUT):
+        """Spawn Flutter app if not already running"""
+        if self.is_running():
+            print(f"\n  Flutter app already running on port {self.port}")
+            return True
+
+        print(f"\n  Spawning Flutter app from: {self.project_path}")
+        print(f"  Target port: {self.port}")
+
+        cmd = f'flutter run -d windows --vm-service-port={self.port} --disable-service-auth-codes'
+
+        try:
+            creation_flags = 0
+            if sys.platform == 'win32':
+                creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+
+            self.process = subprocess.Popen(
+                cmd,
+                cwd=self.project_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                shell=True,
+                creationflags=creation_flags
+            )
+
+            print(f"  Flutter process started (PID: {self.process.pid})")
+            self._spawned = True
+
+            # Wait for app to be ready
+            return self._wait_for_ready(timeout)
+
+        except Exception as e:
+            print(f"  ERROR: Failed to spawn Flutter app: {e}")
+            return False
+
+    def _wait_for_ready(self, timeout):
+        """Wait for app to be ready"""
+        print(f"  Waiting for VM Service to be ready...")
+        start = time.time()
+
+        while time.time() - start < timeout:
+            elapsed = int(time.time() - start)
+
+            # Check if process died
+            if self.process and self.process.poll() is not None:
+                print(f"  ERROR: Flutter process exited with code {self.process.returncode}")
+                return False
+
+            # Check if port is open
+            if self.is_running():
+                time.sleep(2)  # Give it a moment to fully initialize
+                if self.is_running():
+                    print(f"  Flutter app ready on port {self.port} (took {elapsed}s)")
+                    return True
+
+            time.sleep(1)
+
+        print(f"  ERROR: Timeout waiting for Flutter app to start")
+        return False
+
+    def terminate(self):
+        """Terminate spawned Flutter app"""
+        if not self._spawned or not self.process:
+            return
+
+        print(f"\n  Terminating Flutter app (PID: {self.process.pid})...")
+
+        try:
+            if sys.platform == 'win32':
+                self.process.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                self.process.terminate()
+
+            self.process.wait(timeout=10)
+            print("  Flutter app terminated")
+        except subprocess.TimeoutExpired:
+            print("  Force killing Flutter app...")
+            self.process.kill()
+        except Exception as e:
+            print(f"  Error terminating Flutter app: {e}")
 
 
 class MCPClient:
@@ -149,6 +258,10 @@ class MCPClient:
         return []
 
 
+# Global Flutter app manager (created once per session)
+_flutter_app_manager = None
+
+
 @pytest.fixture(scope="session")
 def mcp_executable():
     """Find and return the MCP executable path"""
@@ -188,14 +301,33 @@ def mcp_client(mcp_server):
     return client
 
 
+@pytest.fixture(scope="session")
+def flutter_app_manager():
+    """Session-scoped Flutter app manager that auto-spawns app if needed"""
+    global _flutter_app_manager
+
+    sample_app_path = find_flutter_sample_app()
+    if not sample_app_path:
+        pytest.skip("Flutter sample app not found in examples/flutter_sample_app")
+
+    _flutter_app_manager = FlutterAppManager(sample_app_path)
+
+    yield _flutter_app_manager
+
+    # Cleanup - terminate if we spawned it
+    _flutter_app_manager.terminate()
+
+
 @pytest.fixture
-def flutter_app_running():
-    """Check if Flutter app is running, skip test if not"""
-    if not is_flutter_app_running():
-        pytest.skip(
-            f"Flutter app not running on port {FLUTTER_APP_PORT}. "
-            f"Start with: flutter run -d windows --vm-service-port={FLUTTER_APP_PORT} --disable-service-auth-codes"
-        )
+def flutter_app_running(flutter_app_manager):
+    """Ensure Flutter app is running (auto-spawn if needed)"""
+    if not flutter_app_manager.is_running():
+        if not flutter_app_manager.spawn():
+            pytest.fail(
+                f"Failed to start Flutter app. "
+                f"Manual start: cd examples/flutter_sample_app && "
+                f"flutter run -d windows --vm-service-port={FLUTTER_APP_PORT} --disable-service-auth-codes"
+            )
     return True
 
 

@@ -1,13 +1,28 @@
 """
 Test Connect/Disconnect Tools
+
+Note: test_disconnect_when_not_connected runs FIRST before any app spawning.
 """
 import pytest
 from conftest import MCP_TIMEOUT, FLUTTER_APP_URI, UI_SETTLE_TIME
 import time
 
 
+class TestDisconnectWithoutApp:
+    """Tests that don't require Flutter app - run first"""
+
+    def test_disconnect_when_not_connected(self, mcp_client):
+        """Disconnect when not connected should handle gracefully (runs before app spawn)"""
+        result = mcp_client.call("disconnect", {})
+
+        # Should not error, just return gracefully
+        assert result is not None
+        # Either success or a message that we weren't connected
+        assert 'error' not in result or 'not connected' in str(result.get('error', '')).lower()
+
+
 class TestConnectTool:
-    """Test connect tool functionality"""
+    """Test connect tool functionality (requires Flutter app)"""
 
     def test_connect_completes_quickly(self, mcp_client, flutter_app_running):
         """Connect should complete in < 2 seconds"""
@@ -43,7 +58,7 @@ class TestConnectTool:
 
 
 class TestDisconnectTool:
-    """Test disconnect tool functionality"""
+    """Test disconnect tool functionality (requires Flutter app)"""
 
     def test_disconnect_completes_quickly(self, connected_client):
         """Disconnect should complete in < 2 seconds"""
@@ -52,10 +67,3 @@ class TestDisconnectTool:
         elapsed = time.time() - start
 
         assert elapsed < MCP_TIMEOUT, f"Disconnect took {elapsed:.2f}s, expected < {MCP_TIMEOUT}s"
-
-    def test_disconnect_when_not_connected(self, mcp_client):
-        """Disconnect when not connected should handle gracefully"""
-        result = mcp_client.call("disconnect", {})
-
-        # Should not error, just return
-        assert result is not None
