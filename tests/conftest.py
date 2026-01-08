@@ -491,8 +491,8 @@ def get_error_message(result):
     return "Unknown error"
 
 
-def find_widget(tree_result, widget_type=None, key=None, text=None):
-    """Helper to find a widget in the tree result"""
+def parse_tree_response(tree_result):
+    """Parse widget tree response and return the tree data as dict"""
     if not tree_result or 'result' not in tree_result:
         return None
 
@@ -500,22 +500,122 @@ def find_widget(tree_result, widget_type=None, key=None, text=None):
     if not content:
         return None
 
-    # Parse the tree data
     tree_text = content[0].get('text', '') if content else ''
     try:
-        tree_data = json.loads(tree_text) if tree_text.startswith('{') else {}
+        if tree_text.startswith('{'):
+            return json.loads(tree_text)
+        return None
     except json.JSONDecodeError:
         return None
 
-    widgets = tree_data.get('widgets', [])
+
+def get_all_widgets(tree_result):
+    """Get all widgets from tree result as a flat list"""
+    tree_data = parse_tree_response(tree_result)
+    if not tree_data:
+        return []
+
+    widgets = []
+
+    def collect_widgets(node):
+        if isinstance(node, dict):
+            widgets.append(node)
+            for child in node.get('children', []):
+                collect_widgets(child)
+
+    # Handle different tree structures
+    if 'root' in tree_data:
+        collect_widgets(tree_data['root'])
+    elif 'widgets' in tree_data:
+        for w in tree_data['widgets']:
+            collect_widgets(w)
+    elif 'type' in tree_data:
+        collect_widgets(tree_data)
+
+    return widgets
+
+
+def find_widget(tree_result, widget_type=None, key=None, text=None):
+    """Helper to find a widget in the tree result"""
+    widgets = get_all_widgets(tree_result)
 
     for widget in widgets:
         if widget_type and widget.get('type') != widget_type:
             continue
-        if key and widget.get('properties', {}).get('key') != key:
-            continue
-        if text and widget.get('text') != text:
-            continue
+        if key:
+            widget_key = widget.get('key') or widget.get('properties', {}).get('key')
+            if widget_key != key:
+                continue
+        if text:
+            widget_text = widget.get('text') or widget.get('properties', {}).get('text')
+            if widget_text != text:
+                continue
         return widget
 
+    return None
+
+
+def find_all_widgets(tree_result, widget_type=None):
+    """Find all widgets of a given type"""
+    widgets = get_all_widgets(tree_result)
+    if not widget_type:
+        return widgets
+    return [w for w in widgets if w.get('type') == widget_type]
+
+
+def get_checkbox_state(tree_result, index=0):
+    """Get the checked state of a checkbox widget"""
+    checkboxes = find_all_widgets(tree_result, 'Checkbox')
+    if index >= len(checkboxes):
+        return None
+    checkbox = checkboxes[index]
+    # Try different property locations
+    value = checkbox.get('value')
+    if value is None:
+        value = checkbox.get('properties', {}).get('value')
+    if value is None:
+        value = checkbox.get('checked')
+    if value is None:
+        value = checkbox.get('properties', {}).get('checked')
+    return value
+
+
+def get_text_field_value(tree_result, index=0):
+    """Get the text value of a TextField widget"""
+    text_fields = find_all_widgets(tree_result, 'TextField')
+    if not text_fields:
+        text_fields = find_all_widgets(tree_result, 'TextFormField')
+    if not text_fields:
+        text_fields = find_all_widgets(tree_result, 'EditableText')
+    if index >= len(text_fields):
+        return None
+    field = text_fields[index]
+    # Try different property locations
+    value = field.get('text')
+    if value is None:
+        value = field.get('value')
+    if value is None:
+        value = field.get('properties', {}).get('text')
+    if value is None:
+        value = field.get('properties', {}).get('value')
+    if value is None:
+        value = field.get('controller', {}).get('text')
+    return value
+
+
+def count_widgets(tree_result, widget_type):
+    """Count widgets of a given type"""
+    return len(find_all_widgets(tree_result, widget_type))
+
+
+def get_widget_property(widget, prop_name):
+    """Get a property from a widget, checking multiple locations"""
+    if not widget:
+        return None
+    # Direct property
+    if prop_name in widget:
+        return widget[prop_name]
+    # In properties dict
+    if 'properties' in widget and prop_name in widget['properties']:
+        return widget['properties'][prop_name]
     return None
