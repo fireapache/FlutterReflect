@@ -1,23 +1,18 @@
 @echo off
-REM Run FlutterReflect unit tests
-
 echo ========================================
-echo FlutterReflect - Unit Tests
+echo FlutterReflect - Test Suite
 echo ========================================
 echo.
 
-if exist build\Debug\flutter_reflect_tests.exe (
-    echo Running Debug tests...
-    build\Debug\flutter_reflect_tests.exe
-) else if exist build\Release\flutter_reflect_tests.exe (
-    echo Running Release tests...
-    build\Release\flutter_reflect_tests.exe
-) else (
-    echo Tests executable not found!
-    echo Build the project first.
-    pause
+REM Run pytest tests
+echo Running pytest tests...
+pytest tests/ -v --tb=short
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo Tests FAILED
     exit /b 1
 )
 
 echo.
-pause
+echo Tests PASSED
