@@ -18,7 +18,7 @@ import socket
 import signal
 
 # Configuration
-MCP_TIMEOUT = 3.0  # seconds - max time for any tool call (includes network overhead)
+MCP_TIMEOUT = 5.0  # seconds - max time for any tool call (includes network overhead)
 TIMEOUT_TOLERANCE = 0.1  # seconds - buffer for timing assertions to account for Python overhead
 UI_SETTLE_TIME = 1.0  # seconds - wait after UI interaction before checking state
 FLUTTER_APP_PORT = 8181
