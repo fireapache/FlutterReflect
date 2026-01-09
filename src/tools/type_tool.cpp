@@ -205,7 +205,7 @@ public:
                 // No selector/widget_id - type into currently focused field
                 spdlog::info("Typing into currently focused field");
 
-                // Enter text
+                // Enter text (non-blocking - returns immediately)
                 try {
                     interaction.enterText(text);
                 } catch (const std::exception& e) {
@@ -223,25 +223,11 @@ public:
                     return createErrorResponse(help_msg);
                 }
 
-                // Verify text was entered by checking current text
-                std::string current_text;
-                bool verified = false;
-                try {
-                    current_text = interaction.getText();
-                    verified = current_text.find(text) != std::string::npos ||
-                               current_text == text;
-                    spdlog::info("Text verification: entered='{}', current='{}', verified={}",
-                                text, current_text, verified);
-                } catch (const std::exception& e) {
-                    spdlog::warn("Could not verify text entry: {}", e.what());
-                }
-
+                // Return immediately - caller should wait and check state if needed
                 return createSuccessResponse({
                     {"text", text},
-                    {"method", "focused_field"},
-                    {"verified", verified},
-                    {"current_text", current_text}
-                }, verified ? "Typed text into focused field (verified)" : "Typed text into focused field");
+                    {"method", "focused_field"}
+                }, "Typed text into focused field");
             }
 
         } catch (const std::exception& e) {

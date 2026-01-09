@@ -199,25 +199,10 @@ public:
                 }, "Scrolled within widget: " + widget.getDisplayName());
 
             } else {
-                // Scroll without specific widget (global scroll)
+                // Scroll without specific widget (global scroll, non-blocking)
                 spdlog::info("Performing global scroll");
 
-                // Get widget tree before scroll to compare positions
-                WidgetInspector inspector(vm_client);
-                WidgetTree tree_before = inspector.getWidgetTree(2);
-                nlohmann::json first_widget_bounds_before;
-
-                // Find a widget with bounds to compare before/after
-                std::string comparison_widget_id;
-                for (const auto& [id, node] : tree_before.getAllNodes()) {
-                    if (node.hasBounds() && !node.children_ids.empty()) {
-                        first_widget_bounds_before = node.bounds.value().toJson();
-                        comparison_widget_id = id;
-                        break;
-                    }
-                }
-
-                // Perform the scroll
+                // Perform the scroll and return immediately
                 try {
                     interaction.scroll(dx, dy, duration_ms);
                 } catch (const std::exception& e) {
@@ -236,31 +221,13 @@ public:
                     return createErrorResponse(help_msg);
                 }
 
-                // Get widget tree after scroll
-                WidgetTree tree_after = inspector.getWidgetTree(2);
-                bool scroll_detected = false;
-
-                // Compare widget positions to verify scroll occurred
-                if (!comparison_widget_id.empty()) {
-                    auto widget_after = tree_after.getNode(comparison_widget_id);
-                    if (widget_after.has_value() && widget_after.value().hasBounds()) {
-                        auto bounds_after = widget_after.value().bounds.value();
-                        double before_y = first_widget_bounds_before.value("y", 0.0);
-                        double after_y = bounds_after.y;
-                        // Check if position changed (accounting for scroll direction)
-                        scroll_detected = std::abs(after_y - before_y) > 1.0;
-                        spdlog::info("Scroll verification: before_y={}, after_y={}, detected={}",
-                                    before_y, after_y, scroll_detected);
-                    }
-                }
-
+                // Return immediately - caller should wait and check state if needed
                 return createSuccessResponse({
                     {"dx", dx},
                     {"dy", dy},
                     {"duration_ms", duration_ms},
-                    {"method", "global"},
-                    {"scroll_detected", scroll_detected}
-                }, scroll_detected ? "Scrolled successfully (verified)" : "Scrolled successfully");
+                    {"method", "global"}
+                }, "Scrolled successfully");
             }
 
         } catch (const std::exception& e) {

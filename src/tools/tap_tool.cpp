@@ -153,11 +153,9 @@ public:
 
                 spdlog::info("Found widget: {} (ID: {})", widget.getDisplayName(), widget.id);
 
-                // Get widget tree count before tap to detect changes
-                size_t widgets_before = tree.getNodeCount();
                 auto bounds = widget.bounds.value();
 
-                // Tap the widget
+                // Tap the widget (non-blocking - returns immediately)
                 try {
                     interaction.tapWidget(widget);
                 } catch (const std::exception& e) {
@@ -178,27 +176,15 @@ public:
                     return createErrorResponse(help_msg);
                 }
 
-                // Wait for any UI response
-                interaction.waitUntilIdle();
-
-                // Check if widget tree changed (indicates tap had effect)
-                WidgetTree tree_after = inspector.getWidgetTree(0);
-                size_t widgets_after = tree_after.getNodeCount();
-                bool tap_effect_detected = widgets_after != widgets_before;
-
-                spdlog::info("Tap verification: widgets_before={}, widgets_after={}, effect_detected={}",
-                            widgets_before, widgets_after, tap_effect_detected);
-
+                // Return immediately - caller should wait and check state if needed
                 return createSuccessResponse({
                     {"widget_id", widget.id},
                     {"widget_type", widget.type},
                     {"widget_text", widget.hasText() ? widget.text.value() : ""},
                     {"bounds", bounds.toJson()},
                     {"selector", selector_str},
-                    {"method", "selector"},
-                    {"tap_effect_detected", tap_effect_detected}
-                }, tap_effect_detected ? "Tapped widget (effect detected): " + widget.getDisplayName() :
-                                        "Tapped widget: " + widget.getDisplayName());
+                    {"method", "selector"}
+                }, "Tapped widget: " + widget.getDisplayName());
 
             } else if (arguments.contains("widget_id")) {
                 // Tap by widget ID
@@ -226,11 +212,9 @@ public:
                     );
                 }
 
-                // Get widget tree count before tap
-                size_t widgets_before = tree.getNodeCount();
                 auto bounds = widget.bounds.value();
 
-                // Tap the widget
+                // Tap the widget (non-blocking - returns immediately)
                 try {
                     interaction.tapWidget(widget);
                 } catch (const std::exception& e) {
@@ -251,23 +235,14 @@ public:
                     return createErrorResponse(help_msg);
                 }
 
-                // Wait for UI response
-                interaction.waitUntilIdle();
-
-                // Check if widget tree changed
-                WidgetTree tree_after = inspector.getWidgetTree(0);
-                size_t widgets_after = tree_after.getNodeCount();
-                bool tap_effect_detected = widgets_after != widgets_before;
-
+                // Return immediately - caller should wait and check state if needed
                 return createSuccessResponse({
                     {"widget_id", widget.id},
                     {"widget_type", widget.type},
                     {"widget_text", widget.hasText() ? widget.text.value() : ""},
                     {"bounds", bounds.toJson()},
-                    {"method", "widget_id"},
-                    {"tap_effect_detected", tap_effect_detected}
-                }, tap_effect_detected ? "Tapped widget (effect detected): " + widget.getDisplayName() :
-                                        "Tapped widget: " + widget.getDisplayName());
+                    {"method", "widget_id"}
+                }, "Tapped widget: " + widget.getDisplayName());
 
             } else {
                 return createErrorResponse(

@@ -246,10 +246,28 @@ nlohmann::json WidgetInteraction::sendCustomCommand(const std::string& command_j
         spdlog::debug("Custom command response: {}", response.dump());
 
         // Extract the response from the custom handler
-        // The response structure is: { "result": { "response": "<json_string>" } }
-        if (response.contains("result") && response["result"].contains("response")) {
-            std::string response_str = response["result"]["response"].get<std::string>();
-            return nlohmann::json::parse(response_str);
+        // callServiceMethod returns json["result"] directly, so response is:
+        // { "isError": false, "response": { "message": "<json_string>" }, ... }
+        if (response.contains("response")) {
+            auto& resp = response["response"];
+
+            // Handle nested message structure (Flutter Driver wraps response in "message" field)
+            if (resp.is_object() && resp.contains("message")) {
+                std::string message_str = resp["message"].get<std::string>();
+                spdlog::debug("Custom command message: {}", message_str);
+                return nlohmann::json::parse(message_str);
+            }
+
+            // Handle direct string response (fallback)
+            if (resp.is_string()) {
+                std::string response_str = resp.get<std::string>();
+                return nlohmann::json::parse(response_str);
+            }
+
+            // If response is already a JSON object, return it directly
+            if (resp.is_object()) {
+                return resp;
+            }
         }
 
         // Check for errors
