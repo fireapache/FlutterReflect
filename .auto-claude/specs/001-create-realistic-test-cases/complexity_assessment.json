@@ -1,0 +1,70 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.88,
+  "reasoning": "Building comprehensive test orchestration for sample Flutter app using existing MCP tools. Requires 3-7 files for test scenarios, verification logic, and change detection. No external integrations or infrastructure changes. Existing patterns in codebase (Python test scripts, MCP tools) reduce complexity.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 5,
+      "estimated_services": 1,
+      "is_cross_cutting": false,
+      "notes": "Test orchestration code will be self-contained. Files include: main test script, scenario definitions, verification utilities, change detection logic, test configuration. Single service (testing framework) using existing MCP tools."
+    },
+    "integrations": {
+      "external_services": [],
+      "new_dependencies": [],
+      "research_needed": false,
+      "notes": "No new external integrations. All MCP tools already exist (connect, tap, type, scroll, get_tree, get_properties, screenshot, wait, query). Sample app already instrumented with widget keys."
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "No infrastructure modifications required. Uses existing C++ server, existing MCP protocol, existing Flutter sample app."
+    },
+    "knowledge": {
+      "patterns_exist": true,
+      "research_required": false,
+      "unfamiliar_tech": [],
+      "notes": "Strong existing patterns: Python test scripts (test_comprehensive_suite.py), MCP tool usage patterns, widget key targeting. Sample app has built-in interaction feedback system. No unfamiliar technologies."
+    },
+    "risk": {
+      "level": "low",
+      "concerns": [
+        "Test stability across Flutter app state changes",
+        "Comprehensive coverage of all 15+ UI interaction points",
+        "Robust verification of each interaction type",
+        "Proper state change detection logic"
+      ],
+      "notes": "Low risk as no critical systems affected. Main concerns are test quality and coverage. Existing infrastructure is proven working. Tests are isolated to sample app."
+    }
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": false,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "minimal_mode": true,
+    "test_types_required": ["unit"],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "Test infrastructure code with no security implications. Single service, no database/API changes. Minimal validation appropriate - verify tests run correctly and catch issues. Unit tests for verification/change detection logic sufficient."
+  },
+
+  "created_at": "2025-01-07T14:50:00Z"
+}

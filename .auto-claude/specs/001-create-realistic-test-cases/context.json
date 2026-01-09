@@ -1,0 +1,60 @@
+{
+  "task_description": "Create comprehensive GUI-based test suite for Flutter sample app that simulates realistic human interaction patterns using existing FlutterReflect MCP tools. Tests will initialize app, interact with ALL UI components across Home and Stats screens, verify each interaction, and detect UI state changes.",
+  "scoped_services": ["flutter_reflect", "test_suite", "flutter_sample_app"],
+  "files_to_modify": [],
+  "files_to_create": [
+    "test_realistic_gui_suite.py",
+    "docs/realistic_test_report.md"
+  ],
+  "files_to_reference": [
+    "test_comprehensive_suite.py",
+    "test_get_tree.py",
+    "examples/flutter_sample_app/lib/utils/constants.dart",
+    "examples/flutter_sample_app/lib/screens/home_screen.dart",
+    "examples/flutter_sample_app/lib/screens/stats_screen.dart",
+    "examples/flutter_sample_app/lib/widgets/filter_bar.dart",
+    "examples/flutter_sample_app/lib/widgets/todo_item_widget.dart"
+  ],
+  "patterns": {
+    "mcp_communication": "Use subprocess.Popen for server communication, send_request() function for JSON-RPC calls with newline termination and stdin flush",
+    "connection_sequence": "Initialize MCP → List tools → Connect to Flutter app → Perform interactions → Disconnect",
+    "test_structure": "TestRunner class with results tracking (passed/failed/skipped), individual test methods, comprehensive reporting",
+    "widget_targeting": "Use unique widget keys from constants.dart (e.g., 'addTodoInput', 'addTodoButton', 'deleteButton_{id}', 'todoDone_{id}')",
+    "verification_pattern": "Capture pre-interaction state → Perform action → Capture post-interaction state → Compare and verify changes",
+    "error_handling": "Try-except blocks around each interaction, check for error responses, log failures"
+  },
+  "existing_implementations": {
+    "description": "FlutterReflect C++ server with 10 MCP tools already implemented and tested. Python test infrastructure exists with comprehensive_suite and get_tree test patterns. Sample Flutter app has all UI components instrumented with unique keys and built-in interaction feedback system.",
+    "available_tools": [
+      "flutter_connect - Connect to Flutter app via VM Service WebSocket",
+      "flutter_disconnect - Disconnect from Flutter app",
+      "flutter_get_tree - Extract widget tree snapshot",
+      "flutter_get_properties - Get properties of specific widget",
+      "flutter_find - Find widgets by selector",
+      "flutter_tap - Tap on widget (by selector, widget_id, or coordinates)",
+      "flutter_type - Type text into input field",
+      "flutter_scroll - Scroll a widget",
+      "flutter_list_instances - List Flutter VM instances",
+      "flutter_launch - Launch Flutter app"
+    ],
+    "ui_components": {
+      "home_screen": {
+        "input_fields": ["addTodoInput"],
+        "buttons": ["addTodoButton", "statsButton", "markAllCompleteButton", "clearAllButton"],
+        "lists": ["todoListView"],
+        "checkboxes": ["todoDone_{id}"],
+        "delete_buttons": ["deleteButton_{id}"],
+        "displays": ["statsWidget"]
+      },
+      "stats_screen": {
+        "buttons": ["backButton", "showAllButton", "showActiveButton", "showCompletedButton"],
+        "input_fields": ["searchInput"],
+        "lists": ["filteredListView"],
+        "containers": ["filterBar"],
+        "displays": ["stat cards", "progress bar", "interactionLog"]
+      }
+    }
+  },
+  "created_at": "2026-01-07T14:48:55.499994",
+  "updated_at": "2026-01-07T15:00:00.000000"
+}

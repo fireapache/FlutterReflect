@@ -1,0 +1,213 @@
+{
+  "subtasks": {
+    "subtask-1-1": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2026-01-07T15:02:29.103411",
+          "approach": "Implemented: Create test file foundation with TestRunner class and MCP communication utilities (send_request func",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-1-2": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2026-01-07T15:06:11.395093",
+          "approach": "Implemented: Implement app initialization sequence: MCP init, tool listing, Flutter app connection, connection ve",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-1-3": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2026-01-07T15:10:35.492588",
+          "approach": "Implemented: Implement state snapshot utilities (capture_tree, compare_trees, get_widget_count) for change detect",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-1": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2026-01-07T15:15:03.449810",
+          "approach": "Implemented: Implement input field test: Type text in addTodoInput, verify via get_properties, clear field, verif",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-2": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2026-01-07T15:18:43.467382",
+          "approach": "Implemented: Implement Add Task button test: Type text, click Add button, verify new todo appears in list via tre",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-3": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2026-01-07T15:21:49.275003",
+          "approach": "Implemented: Implement checkbox toggle test: Click todoDone_{id} checkbox, verify strikethrough decoration appear",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-4": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2026-01-07T15:25:08.608751",
+          "approach": "Implemented: Implement delete button test: Click deleteButton_{id}, confirm in dialog, verify todo removed from l",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-5": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2026-01-07T15:28:27.969478",
+          "approach": "Implemented: Implement Mark All Complete button test: Click button, verify all todos show strikethrough, verify c",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-6": {
+      "attempts": [
+        {
+          "session": 9,
+          "timestamp": "2026-01-07T15:33:11.219974",
+          "approach": "Implemented: Implement Clear All button test: Click button, confirm in dialog, verify all todos removed, verify e",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 10,
+          "timestamp": "2026-01-07T15:38:26.916256",
+          "approach": "Implemented: Implement navigation to Stats screen: Click Stats button, verify StatsScreen visible via widget tree",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-2": {
+      "attempts": [
+        {
+          "session": 11,
+          "timestamp": "2026-01-07T15:41:57.836105",
+          "approach": "Implemented: Implement back navigation: Click backButton, verify return to HomeScreen, verify todo list visible a",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-3": {
+      "attempts": [
+        {
+          "session": 12,
+          "timestamp": "2026-01-07T15:46:48.642964",
+          "approach": "Implemented: Implement search field test: Type in searchInput, verify filtered results update in widget tree, cle",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-4": {
+      "attempts": [
+        {
+          "session": 13,
+          "timestamp": "2026-01-07T15:50:56.888629",
+          "approach": "Implemented: Implement filter buttons test: Click showAllButton, showActiveButton, showCompletedButton, verify fi",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-1": {
+      "attempts": [
+        {
+          "session": 14,
+          "timestamp": "2026-01-07T15:55:43.172656",
+          "approach": "Implemented: Implement full workflow test: Add todos \u2192 Navigate to stats \u2192 Filter \u2192 Mark complete \u2192 Delete \u2192 Veri",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-2": {
+      "attempts": [
+        {
+          "session": 15,
+          "timestamp": "2026-01-07T16:00:19.183063",
+          "approach": "Implemented: Implement edge case tests: Empty state handling, rapid interactions, long text input, special charac",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-3": {
+      "attempts": [
+        {
+          "session": 16,
+          "timestamp": "2026-01-07T16:04:46.116907",
+          "approach": "Implemented: Create comprehensive test report documenting all tested components, interactions performed, results,",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-4": {
+      "attempts": [
+        {
+          "session": 17,
+          "timestamp": "2026-01-07T16:09:19.580950",
+          "approach": "Implemented: Implement test cleanup and final report generation: Disconnect from Flutter app, print comprehensive",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
+  "stuck_subtasks": [],
+  "metadata": {
+    "created_at": "2026-01-07T14:57:38.655263",
+    "last_updated": "2026-01-07T16:09:19.580950"
+  }
+}

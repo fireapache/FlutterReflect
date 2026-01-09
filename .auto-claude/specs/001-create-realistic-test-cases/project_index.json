@@ -1,0 +1,38 @@
+{
+  "project_root": "E:\\dev\\FlutterReflect",
+  "project_type": "single",
+  "services": {
+    "flutter_reflect": {
+      "path": ".",
+      "tech_stack": ["C++", "MCP", "CMake"],
+      "build_command": "cmake --build build --config Debug",
+      "executable": "build/Debug/flutter_reflect.exe",
+      "port": null,
+      "description": "C++ MCP server for Flutter UI automation"
+    },
+    "test_suite": {
+      "path": ".",
+      "tech_stack": ["Python", "subprocess", "JSON-RPC"],
+      "test_command": "python test_realistic_gui_suite.py",
+      "description": "Python test scripts using MCP protocol"
+    },
+    "flutter_sample_app": {
+      "path": "examples/flutter_sample_app",
+      "tech_stack": ["Flutter", "Dart"],
+      "dev_command": "flutter run -d windows --vm-service-port=8181 --disable-service-auth-codes",
+      "port": 8181,
+      "description": "Sample todo app for testing"
+    }
+  },
+  "infrastructure": {
+    "docker": false,
+    "database": false,
+    "build_system": "CMake"
+  },
+  "conventions": {
+    "linter": null,
+    "formatter": null,
+    "testing": "Python subprocess + JSON-RPC",
+    "mcp_protocol": "2024-11-05"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "task_description": "Create realistic tests using sample app so it will initialize sample app, perform interactions on all UI components, confirm they were interacted, detect changes on UI upon interactions. The goal of this task and goal of the app itself is to be able to test Flutter apps using GUI interface much closer to how humans interact with app, being able to catch issues not visible by other testing methods in Flutter ecosystem. There are already fundamental functions in place, server and CLI commands and mcp tools in place, use them.",
+  "workflow_type": "feature"
+}
